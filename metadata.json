@@ -1,0 +1,6 @@
+{
+  "name": "Digital Katta – AI CIBIL Report Analyzer",
+  "description": "AI-powered CIBIL and Indian credit report analyzer that parses PDF/HTML/JSON reports, detects negative factors, uncovers disputable errors, and crafts personalized 30/60/90-day recovery plans.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
