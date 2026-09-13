@@ -2,11 +2,21 @@
 
 @layer base {
   body {
+    background-color: #329691;
+    color: #0f172a;
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   h1, h2, h3, .font-heading {
     font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
   }
+}
+
+/* Custom Brand Color Variables */
+:root {
+  --brand-teal: #329691;
+  --brand-teal-dark: #247571;
+  --brand-teal-light: #44aba6;
+  --brand-teal-surface: #eaf6f5;
 }
 
 @media print {

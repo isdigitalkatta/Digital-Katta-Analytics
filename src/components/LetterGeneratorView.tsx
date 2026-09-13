@@ -11,6 +11,8 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import { CreditAccount, NormalizedCreditReport } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { LegalDisclaimer } from './LegalDisclaimer';
 
 interface LetterGeneratorViewProps {
   report: NormalizedCreditReport;
@@ -23,6 +25,7 @@ export const LetterGeneratorView: React.FC<LetterGeneratorViewProps> = ({
   prefillAccountId,
   prefillIssueType,
 }) => {
+  const { getAuthHeaders } = useAuth();
   const issueTypes = [
     { id: 'Account Closure Update', label: 'Account Closure Not Reflected (NOC Available)' },
     { id: 'Incorrect Overdue Balance', label: 'Spurious / Incorrect Overdue Amount' },
@@ -74,7 +77,7 @@ export const LetterGeneratorView: React.FC<LetterGeneratorViewProps> = ({
 
       const res = await fetch('/api/ai/letter', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -360,6 +363,8 @@ ${borrowerName}
           </p>
         </div>
       </div>
+
+      <LegalDisclaimer variant="card" className="mt-4" />
     </div>
   );
 };

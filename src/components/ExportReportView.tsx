@@ -11,6 +11,7 @@ import {
 } from 'lucide-react';
 import { AIAnalysisResult, NormalizedCreditReport } from '../types';
 import { formatIndianCurrency } from '../utils/normalizer';
+import { CompanyLogo } from './CompanyLogo';
 
 interface ExportReportViewProps {
   report: NormalizedCreditReport;
@@ -72,15 +73,15 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
         {/* Document Header */}
         <div className="border-b border-slate-200 pb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-blue-600 text-white font-bold flex items-center justify-center text-sm shadow-xs">
-              DK
+            <div className="p-1 rounded-xl bg-white border border-slate-200 shadow-xs shrink-0">
+              <CompanyLogo size="md" />
             </div>
             <div>
               <h1 className="text-xl font-extrabold text-slate-900 font-heading">
                 Digital Katta – Credit Health Report
               </h1>
               <p className="text-xs text-slate-500">
-                AI Powered Indian CIBIL & Credit Bureau Diagnostic Dossier
+                AI Powered Indian CIBIL & Credit Bureau Diagnostic Dossier • ठिकाण एक, सुविधा अनेक..!
               </p>
             </div>
           </div>

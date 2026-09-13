@@ -11,6 +11,8 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { NormalizedCreditReport } from '../types';
+import { useAuth } from '../context/AuthContext';
+import { LegalDisclaimer } from './LegalDisclaimer';
 
 interface AskAIAssistantProps {
   report: NormalizedCreditReport;
@@ -32,6 +34,7 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
   onClose,
   isDrawer = true,
 }) => {
+  const { getAuthHeaders } = useAuth();
   const quickQuestions = [
     'Why is my CIBIL score low?',
     'Which account is hurting my profile most?',
@@ -81,7 +84,7 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
     try {
       const res = await fetch('/api/ai/chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           question: q.trim(),
           report,
@@ -232,9 +235,7 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
             <Send className="w-4 h-4" />
           </button>
         </form>
-        <p className="text-[10px] text-slate-400 text-center mt-1.5">
-          AI cannot modify bureau records directly or promise guaranteed score changes.
-        </p>
+        <LegalDisclaimer variant="compact" className="mt-2 text-[10px]" />
       </div>
     </div>
   );

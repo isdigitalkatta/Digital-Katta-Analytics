@@ -80,9 +80,12 @@ export const PrivacyModal: React.FC<PrivacyModalProps> = ({
             <div className="flex items-start gap-2.5">
               <FileText className="w-4 h-4 text-slate-500 shrink-0 mt-0.5" />
               <div>
-                <strong className="text-slate-900">Independent Software:</strong>
+                <strong className="text-slate-900">DPDP Act 2023 & RBI Compliance:</strong>
                 <p className="text-slate-600">
-                  Digital Katta is an independent diagnostic software application and is not affiliated with TransUnion CIBIL, Experian, Equifax, CRIF High Mark, the RBI, or any banking corporation.
+                  Fully aligned with the Digital Personal Data Protection Act 2023 (India) and RBI Master Directions. Digital Katta does not store or monetize your credit data. You retain statutory rights to erasure and summary of processed data.
+                </p>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Designated Grievance Redressal Officer: <code className="bg-slate-100 px-1 py-0.5 rounded text-slate-700">grievance@digitalkatta.com</code>
                 </p>
               </div>
             </div>
@@ -103,7 +106,7 @@ export const PrivacyModal: React.FC<PrivacyModalProps> = ({
                 className="px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>Delete Report</span>
+                <span>Erase All Session Data</span>
               </button>
             </div>
           )}

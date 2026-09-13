@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   ShieldCheck,
 } from 'lucide-react';
+import { CompanyLogo } from './CompanyLogo';
 
 export type NavTab =
   | 'dashboard'
@@ -85,22 +86,24 @@ export const Sidebar: React.FC<SidebarProps> = ({
   return (
     <aside className="w-64 bg-slate-900 text-slate-200 shrink-0 flex flex-col border-r border-slate-800 select-none min-h-screen">
       {/* Brand area */}
-      <div className="p-5 border-b border-slate-800/80">
+      <div className="p-4 border-b border-slate-800/80 bg-slate-950/40">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-linear-to-tr from-blue-600 to-indigo-500 flex items-center justify-center text-white font-bold shadow-md shadow-blue-500/20">
-            DK
+          <div className="p-1 rounded-xl bg-white shadow-xs shrink-0 flex items-center justify-center">
+            <CompanyLogo size="sidebar" />
           </div>
           <div>
-            <span className="font-heading text-lg font-bold text-white tracking-tight">
-              Digital Katta
-            </span>
-            <p className="text-[11px] font-medium text-slate-400 -mt-0.5">
+            <div className="flex items-center gap-1">
+              <span className="font-heading text-sm font-extrabold text-white tracking-tight">
+                Digital Katta
+              </span>
+            </div>
+            <p className="text-[10px] font-medium text-teal-400">
               AI CIBIL Analyzer
             </p>
           </div>
         </div>
         {isDemo && (
-          <div className="mt-3 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[11px] font-semibold text-center">
+          <div className="mt-2.5 px-2 py-1 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-semibold text-center">
             DEMO DATA – NOT A REAL REPORT
           </div>
         )}
@@ -120,7 +123,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onSelectTab(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-[#329691] text-white shadow-xs'
                   : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >
@@ -149,7 +152,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
               onClick={() => onSelectTab(item.id)}
               className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-semibold transition-colors cursor-pointer ${
                 isActive
-                  ? 'bg-blue-600 text-white shadow-xs'
+                  ? 'bg-[#329691] text-white shadow-xs'
                   : 'text-slate-300 hover:bg-slate-800/80 hover:text-white'
               }`}
             >

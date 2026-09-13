@@ -10,7 +10,9 @@ import {
   CheckCircle2,
   ShieldCheck,
   PlayCircle,
+  Sparkles,
 } from 'lucide-react';
+import { CompanyLogo } from './CompanyLogo';
 
 interface LandingPageProps {
   onOpenUpload: () => void;
@@ -26,9 +28,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
   const features = [
     {
       icon: BrainCircuit,
-      title: 'AI Credit Analysis',
+      title: 'AI Credit Diagnosis',
       desc: 'Sophisticated diagnosis of payment delays, DPD trends, and high revolving card utilization.',
-      color: 'from-blue-500 to-indigo-600',
+      color: 'from-teal-600 to-emerald-700',
     },
     {
       icon: ShieldAlert,
@@ -46,88 +48,106 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       icon: FileCheck2,
       title: 'Dispute Opportunity Detection',
       desc: 'Uncover potential inaccuracies such as active status on closed loans, wrong overdues, or duplicate accounts.',
-      color: 'from-emerald-500 to-teal-600',
+      color: 'from-emerald-600 to-teal-700',
     },
     {
       icon: CalendarDays,
       title: 'Personalized Action Plan',
       desc: 'A prioritized 30 / 60 / 90-day roadmap targeting fast score stabilization and debt resolution.',
-      color: 'from-purple-500 to-indigo-600',
+      color: 'from-purple-600 to-indigo-700',
     },
     {
       icon: FileText,
       title: 'AI Letter Generator',
       desc: 'Draft formal, RBI-compliant grievance letters to banks and NBFCs with accurate circular citations.',
-      color: 'from-cyan-500 to-blue-600',
+      color: 'from-cyan-600 to-blue-700',
     },
   ];
 
   return (
-    <div className="flex-1 overflow-y-auto bg-slate-50">
+    <div className="flex-1 overflow-y-auto bg-[#329691] text-slate-100">
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-16 md:pt-16 md:pb-24 border-b border-slate-200/80 bg-white">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-50 border border-blue-200/80 text-blue-700 text-xs font-semibold mb-6">
-            <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-            Built for Indian Borrowers & CIBIL Reports
+      <section className="relative overflow-hidden pt-10 pb-16 md:pt-14 md:pb-20">
+        {/* Subtle background glow */}
+        <div className="absolute inset-0 overflow-hidden pointer-events-none">
+          <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[650px] h-[350px] bg-white/10 rounded-full blur-3xl"></div>
+        </div>
+
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 text-center">
+          {/* Prominent Company Logo Display */}
+          <div className="inline-flex flex-col items-center justify-center mb-6">
+            <div className="bg-white p-4 sm:p-5 rounded-3xl shadow-xl border border-white/40 transform hover:scale-105 transition-all duration-300">
+              <CompanyLogo size="hero" showTagline={true} />
+            </div>
+            <div className="mt-3 flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs border border-white/30 text-white text-xs font-semibold">
+              <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+              <span>Official CIBIL & Credit Report Intelligence Portal</span>
+            </div>
           </div>
 
           {/* Headline */}
-          <h1 className="text-3xl sm:text-5xl font-extrabold text-slate-900 tracking-tight font-heading leading-tight mb-4">
+          <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-heading leading-tight mb-4 drop-shadow-xs">
             Understand Your CIBIL Report With AI
           </h1>
 
           {/* Subheadline */}
-          <p className="text-base sm:text-lg text-slate-600 max-w-2xl mx-auto leading-relaxed mb-8">
-            Upload your credit report and instantly identify negative accounts, payment issues, utilization problems, potential discrepancies, and the actions you can take to improve your credit profile.
+          <p className="text-base sm:text-lg text-teal-50 max-w-2xl mx-auto leading-relaxed mb-8">
+            Upload your credit report and instantly identify negative accounts, payment issues, utilization problems, potential discrepancies, and step-by-step actions to build a 750+ score.
           </p>
 
           {/* Action CTAs */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5">
             <button
               onClick={onOpenUpload}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-sm shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-white hover:bg-teal-50 text-[#1f6360] font-extrabold text-sm shadow-xl shadow-teal-950/20 transition-all cursor-pointer transform active:scale-95"
             >
-              <UploadCloud className="w-4 h-4" />
-              <span>Analyze My Report</span>
+              <UploadCloud className="w-5 h-5 text-[#329691]" />
+              <span>Analyze My Credit Report</span>
             </button>
 
             <button
               onClick={() => onSelectDemo('stressed')}
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-sm border border-slate-200/80 transition-all cursor-pointer"
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-teal-950/30 hover:bg-teal-950/50 text-white font-bold text-sm border border-white/20 transition-all cursor-pointer"
             >
-              <PlayCircle className="w-4 h-4 text-blue-600" />
-              <span>View Demo</span>
+              <PlayCircle className="w-4 h-4 text-amber-300" />
+              <span>Try Stressed Demo</span>
+            </button>
+
+            <button
+              onClick={() => onSelectDemo('good')}
+              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-teal-950/30 hover:bg-teal-950/50 text-white font-bold text-sm border border-white/20 transition-all cursor-pointer"
+            >
+              <CheckCircle2 className="w-4 h-4 text-emerald-300" />
+              <span>Try Good Score Demo</span>
             </button>
           </div>
 
           {/* Supported formats */}
-          <div className="mt-8 flex items-center justify-center gap-4 text-xs font-medium text-slate-500">
-            <span>Supports:</span>
-            <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-mono font-semibold">.PDF</span>
-            <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-mono font-semibold">.HTML</span>
-            <span className="bg-slate-100 px-2 py-0.5 rounded text-slate-700 font-mono font-semibold">.JSON</span>
+          <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-xs font-medium text-teal-100">
+            <span>Compatible with:</span>
+            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">.PDF</span>
+            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">.HTML</span>
+            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">.JSON</span>
             <span>•</span>
             <button
               onClick={onOpenPrivacy}
-              className="text-blue-600 hover:underline flex items-center gap-1 cursor-pointer"
+              className="text-white underline hover:text-teal-200 flex items-center gap-1 cursor-pointer font-semibold"
             >
-              <ShieldCheck className="w-3.5 h-3.5" />
-              <span>100% Privacy Protected</span>
+              <ShieldCheck className="w-4 h-4 text-emerald-300" />
+              <span>100% Privacy Protected (Client-Side Parsing)</span>
             </button>
           </div>
         </div>
       </section>
 
-      {/* Feature Cards Grid */}
-      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-14">
+      {/* Feature Cards Grid on #329691 background */}
+      <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         <div className="text-center mb-10">
-          <h2 className="text-2xl sm:text-3xl font-bold text-slate-900 font-heading">
+          <h2 className="text-2xl sm:text-3xl font-bold text-white font-heading">
             Comprehensive Credit Diagnosis
           </h2>
-          <p className="text-sm text-slate-500 mt-1 max-w-xl mx-auto">
-            Transform confusing 40-page financial bureau PDFs into actionable, transparent intelligence.
+          <p className="text-sm text-teal-100 mt-1 max-w-xl mx-auto">
+            Transform confusing 40-page financial bureau documents into actionable, transparent intelligence.
           </p>
         </div>
 
@@ -137,9 +157,9 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             return (
               <div
                 key={idx}
-                className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs hover:shadow-md transition-shadow"
+                className="bg-white rounded-2xl border border-teal-800/20 p-6 shadow-md hover:shadow-xl transition-all text-slate-900 group"
               >
-                <div className={`w-11 h-11 rounded-xl bg-linear-to-tr ${feat.color} flex items-center justify-center text-white mb-4 shadow-sm`}>
+                <div className={`w-11 h-11 rounded-xl bg-linear-to-tr ${feat.color} flex items-center justify-center text-white mb-4 shadow-sm group-hover:scale-110 transition-transform`}>
                   <Icon className="w-5 h-5" />
                 </div>
                 <h3 className="text-base font-bold text-slate-900 font-heading mb-1.5">
@@ -156,25 +176,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
 
       {/* Trust & Privacy Statement Banner */}
       <section className="max-w-5xl mx-auto px-4 sm:px-6 pb-16">
-        <div className="bg-slate-900 text-slate-200 rounded-3xl p-6 sm:p-8 border border-slate-800 flex flex-col md:flex-row items-center justify-between gap-6">
+        <div className="bg-white/95 backdrop-blur-md text-slate-900 rounded-3xl p-6 sm:p-8 border border-white/40 shadow-xl flex flex-col md:flex-row items-center justify-between gap-6">
           <div className="space-y-2 text-center md:text-left">
-            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-400">
-              <ShieldCheck className="w-4 h-4" />
+            <div className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
+              <ShieldCheck className="w-4 h-4 text-teal-600" />
               <span>Zero-Data Retention Policy</span>
             </div>
-            <h4 className="text-lg font-bold text-white font-heading">
-              Your sensitive financial records never stay on our servers.
+            <h4 className="text-lg font-bold text-slate-900 font-heading">
+              Your sensitive financial records are completely confidential.
             </h4>
-            <p className="text-xs text-slate-400 max-w-xl leading-relaxed">
-              PAN numbers and account details are masked on the client side. Uploaded reports are processed in temporary memory and can be permanently wiped with a single click.
+            <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
+              PAN numbers and account identifiers are masked automatically. Uploaded reports are processed in temporary memory and can be permanently wiped with a single click.
             </p>
           </div>
 
           <button
-            onClick={() => onSelectDemo('good')}
-            className="shrink-0 px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white text-xs font-bold border border-slate-700 transition-colors cursor-pointer"
+            onClick={onOpenUpload}
+            className="shrink-0 px-6 py-3 rounded-xl bg-[#329691] hover:bg-[#25736f] text-white text-xs font-bold shadow-md shadow-teal-900/20 transition-all cursor-pointer"
           >
-            Try Demo with Good Score
+            Upload Report Now
           </button>
         </div>
       </section>

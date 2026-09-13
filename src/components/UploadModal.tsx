@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { parseCreditReportFile } from '../utils/reportParser';
 import { NormalizedCreditReport } from '../types';
+import { CompanyLogo } from './CompanyLogo';
 
 interface UploadModalProps {
   isOpen: boolean;
@@ -31,6 +32,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   const [progressStage, setProgressStage] = useState<string>('');
   const [progressPercent, setProgressPercent] = useState<number>(0);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [hasGivenConsent, setHasGivenConsent] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -48,6 +50,12 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   };
 
   const validateAndProcessFile = async (file: File) => {
+    if (!hasGivenConsent) {
+      setErrorMessage(
+        'Please check the DPDP Act consent checkbox below before uploading your credit report.'
+      );
+      return;
+    }
     setErrorMessage(null);
     setSelectedFile(file);
 
@@ -106,13 +114,16 @@ export const UploadModal: React.FC<UploadModalProps> = ({
       <div className="bg-white rounded-2xl shadow-xl border border-slate-200 w-full max-w-lg overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* Modal Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-slate-100">
-          <div>
-            <h3 className="text-base font-bold text-slate-900 font-heading">
-              Upload Credit Report
-            </h3>
-            <p className="text-xs text-slate-500">
-              Supports official CIBIL, Experian, Equifax, or CRIF reports
-            </p>
+          <div className="flex items-center gap-3">
+            <CompanyLogo size="sm" />
+            <div>
+              <h3 className="text-base font-bold text-slate-900 font-heading">
+                Upload Credit Report
+              </h3>
+              <p className="text-xs text-slate-500">
+                Supports official CIBIL, Experian, Equifax, or CRIF reports
+              </p>
+            </div>
           </div>
           <button
             onClick={onClose}
@@ -132,6 +143,25 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               <strong>Zero-Retention Guarantee:</strong> Your report is parsed transiently in your browser session. Account numbers & PAN details are automatically masked.
             </p>
           </div>
+
+          {/* Statutory DPDP Act 2023 Consent Checkbox */}
+          <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50/70 cursor-pointer select-none transition-colors">
+            <input
+              type="checkbox"
+              checked={hasGivenConsent}
+              onChange={(e) => {
+                setHasGivenConsent(e.target.checked);
+                if (e.target.checked) setErrorMessage(null);
+              }}
+              className="mt-0.5 w-4 h-4 rounded text-[#329691] focus:ring-[#329691] border-slate-300 cursor-pointer"
+            />
+            <span className="text-[11px] text-slate-700 leading-snug">
+              <strong className="text-slate-900 block font-semibold mb-0.5">
+                Data Principal Consent (DPDP Act 2023, India)
+              </strong>
+              I give explicit consent to parse and analyze my credit report. I acknowledge that all processing is transient with zero permanent remote server retention, and is not a guarantee of credit score improvement.
+            </span>
+          </label>
 
           {/* Drag & Drop Area */}
           <div

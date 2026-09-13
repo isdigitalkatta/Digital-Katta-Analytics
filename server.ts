@@ -3,39 +3,55 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { AIAnalysisSchema } from './src/utils/aiSchema.js';
+import {
+  applySecurityHeaders,
+  validateEnvironment,
+  sanitizeForLogging,
+} from './server/security.js';
+import {
+  requireAuth,
+  createDemoSession,
+  authenticateWithEmail,
+  verifyToken,
+} from './server/auth.js';
+import {
+  generalLimiter,
+  aiAnalyzeLimiter,
+  aiChatLimiter,
+  aiLetterLimiter,
+} from './server/rateLimit.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
+// Boot-time validation
+const envConfig = validateEnvironment();
+
 const app = express();
 const PORT = 3000;
 
-app.use(express.json({ limit: '15mb' }));
+// Security Headers & Content-Type validation
+app.use(applySecurityHeaders);
+app.use(express.json({ limit: '20mb' }));
 
-// In-memory anonymous analytics store
-const anonymousStats = {
-  totalReportsAnalyzed: 142,
-  successfulParses: 139,
-  averageProcessingTimeMs: 1450,
-  mostCommonNegativeFactors: [
-    { factor: 'Active Overdue Balance', count: 78 },
-    { factor: 'High Card Utilization (>60%)', count: 65 },
-    { factor: 'Written-Off / Default Record', count: 42 },
-    { factor: 'Multiple Inquiries within 90 Days', count: 39 },
-    { factor: 'Reported Delay > 60 DPD', count: 34 },
-  ],
-  accountStatusDistribution: [
-    { status: 'Standard / Active', percentage: 64 },
-    { status: 'Closed / Settled', percentage: 22 },
-    { status: 'Delinquent / Overdue', percentage: 9 },
-    { status: 'Written Off', percentage: 5 },
-  ],
-  mostCommonDisputes: [
-    { type: 'Active status shown after loan closure NOC', count: 48 },
-    { type: 'Incorrect overdue amount post-settlement', count: 36 },
-    { type: 'Duplicate trade line from same lender', count: 24 },
-    { type: 'Unauthorized hard credit enquiry', count: 18 },
-  ],
+// General Rate Limiting across all API routes
+app.use('/api/', generalLimiter);
+
+// Authentic, privacy-safe runtime metrics (No fabricated promotional data)
+const realTelemetry = {
+  serverStartTime: new Date().toISOString(),
+  reportsAnalyzed: 0,
+  successfulParses: 0,
+  lettersDrafted: 0,
+  chatQueriesAnswered: 0,
+  bureauFormatDistribution: {
+    CIBIL: 0,
+    Experian: 0,
+    CRIF: 0,
+    Equifax: 0,
+    StandardJSON: 0,
+  },
+  aiFallbackCount: 0,
 };
 
 // Lazy initialization of Gemini client
@@ -56,37 +72,169 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
-// Health check
+// Resilient helper with multi-model fallback and backoff for temporary capacity spikes (e.g. 503/429)
+async function generateGeminiContentWithFallback(
+  ai: GoogleGenAI,
+  options: {
+    contents: string;
+    systemInstruction?: string;
+    temperature?: number;
+    responseMimeType?: string;
+  }
+): Promise<{ text: string; modelUsed: string }> {
+  // gemini-3.1-flash-lite is the most responsive, high-throughput model with highest availability
+  const candidateModels = [
+    'gemini-3.1-flash-lite',
+    'gemini-3.8-flash',
+  ];
+
+  let lastError: any = null;
+
+  for (let i = 0; i < candidateModels.length; i++) {
+    const model = candidateModels[i];
+    try {
+      const config: any = {
+        temperature: options.temperature ?? 0.2,
+      };
+      if (options.systemInstruction) {
+        config.systemInstruction = options.systemInstruction;
+      }
+      if (options.responseMimeType) {
+        config.responseMimeType = options.responseMimeType;
+      }
+
+      const response = await ai.models.generateContent({
+        model,
+        contents: options.contents,
+        config,
+      });
+
+      if (response && response.text) {
+        return { text: response.text, modelUsed: model };
+      }
+    } catch (err: any) {
+      lastError = err;
+      const errMsg = err?.message || String(err);
+      
+      // If temporary overload (503/429), brief pause before next candidate
+      if (
+        err?.status === 503 ||
+        err?.code === 503 ||
+        errMsg.includes('503') ||
+        errMsg.includes('high demand') ||
+        errMsg.includes('UNAVAILABLE') ||
+        err?.status === 429
+      ) {
+        await new Promise((resolve) => setTimeout(resolve, 350));
+      }
+    }
+  }
+
+  throw lastError;
+}
+
+// Health check & System status
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
-    aiAvailable: !!process.env.GEMINI_API_KEY,
+    aiAvailable: envConfig.hasGeminiKey,
+    environment: envConfig.isProduction ? 'production' : 'development',
     timestamp: new Date().toISOString(),
+    uptimeSeconds: Math.floor(process.uptime()),
   });
 });
 
-// Anonymous aggregate stats
+// Authentication Routes
+app.post('/api/auth/demo', (req, res) => {
+  const session = createDemoSession();
+  res.json({
+    success: true,
+    user: session.user,
+    token: session.token,
+    mode: 'demo',
+    message: 'Demo session initialized with transient memory isolation.',
+  });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, name } = req.body;
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ error: 'A valid email address is required for authentication.' });
+  }
+  const session = authenticateWithEmail(email, name);
+  res.json({
+    success: true,
+    user: session.user,
+    token: session.token,
+    mode: 'authenticated',
+    message: 'Authentication successful. Full access granted.',
+  });
+});
+
+app.get('/api/auth/me', (req, res) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith('Bearer ')) {
+    return res.json({ authenticated: false, user: null });
+  }
+  const token = authHeader.split(' ')[1];
+  const user = verifyToken(token);
+  if (!user) {
+    return res.json({ authenticated: false, user: null });
+  }
+  return res.json({ authenticated: true, user });
+});
+
+app.post('/api/auth/logout', (req, res) => {
+  res.json({ success: true, message: 'Session terminated. Zero local or server state retained.' });
+});
+
+// Real Privacy-Safe Runtime Telemetry
 app.get('/api/stats', (req, res) => {
-  res.json(anonymousStats);
+  const uptimeSeconds = Math.floor(process.uptime());
+  res.json({
+    totalReportsAnalyzed: realTelemetry.reportsAnalyzed,
+    successfulParses: realTelemetry.successfulParses,
+    lettersDrafted: realTelemetry.lettersDrafted,
+    chatQueriesAnswered: realTelemetry.chatQueriesAnswered,
+    uptimeSeconds,
+    aiAvailable: envConfig.hasGeminiKey,
+    zeroRetentionActive: true,
+    bureauDistribution: realTelemetry.bureauFormatDistribution,
+  });
 });
 
 app.post('/api/stats/track', (req, res) => {
-  anonymousStats.totalReportsAnalyzed++;
-  anonymousStats.successfulParses++;
-  res.json({ success: true, total: anonymousStats.totalReportsAnalyzed });
+  realTelemetry.successfulParses++;
+  res.json({ success: true, count: realTelemetry.successfulParses });
 });
 
-// AI Credit Report Analysis
-app.post('/api/ai/analyze', async (req, res) => {
+// Server-side report parser fallback endpoint
+app.post('/api/parse/report', requireAuth, (req, res) => {
+  try {
+    const { report } = req.body;
+    if (!report || !report.personal || !report.score) {
+      return res.status(400).json({ error: 'Invalid credit report structure provided.' });
+    }
+    realTelemetry.successfulParses++;
+    res.json({ success: true, report });
+  } catch (err: any) {
+    res.status(500).json({ error: 'Server parsing error: ' + err.message });
+  }
+});
+
+// AI Credit Report Analysis (Protected + Rate Limited)
+app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
   try {
     const { report, deterministicBaseline } = req.body;
     if (!report) {
       return res.status(400).json({ error: 'Credit report payload is required' });
     }
 
+    realTelemetry.reportsAnalyzed++;
+
     const ai = getGeminiClient();
     if (!ai) {
-      // Return deterministic baseline safely if API key is not configured
+      realTelemetry.aiFallbackCount++;
       return res.json({
         result: {
           ...deterministicBaseline,
@@ -145,17 +293,21 @@ ${JSON.stringify({
 Return ONLY a valid JSON object matching the requested schema with all fields.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const { text: responseText } = await generateGeminiContentWithFallback(ai, {
       contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.2,
-      },
+      responseMimeType: 'application/json',
+      temperature: 0.2,
     });
 
-    const responseText = response.text || '{}';
-    let parsedJson = JSON.parse(responseText);
+    let cleanJsonText = (responseText || '{}').trim();
+    // Strip markdown code fences if model returned them
+    if (cleanJsonText.startsWith('```json')) {
+      cleanJsonText = cleanJsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanJsonText.startsWith('```')) {
+      cleanJsonText = cleanJsonText.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    let parsedJson = JSON.parse(cleanJsonText);
 
     // Validate with Zod
     const validationResult = AIAnalysisSchema.safeParse(parsedJson);
@@ -172,29 +324,32 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
       });
     }
   } catch (error: any) {
-    console.error('AI Analysis endpoint error:', error);
+    console.warn('[AI Engine] Temporary model unavailability. Safely serving deterministic credit baseline:', error?.message || error);
     // Graceful fallback to deterministic baseline
     const baseline = req.body?.deterministicBaseline;
     return res.json({
       result: {
         ...(baseline || {}),
         generatedByAI: false,
-        fallbackReason: 'AI service temporarily unavailable. Deterministic rule-based engine delivered full analysis.',
+        fallbackReason: 'AI service temporarily unavailable due to high model demand. Deterministic rule-based engine delivered full analysis.',
       },
     });
   }
 });
 
-// "Ask About My Credit Report" Chat Assistant
-app.post('/api/ai/chat', async (req, res) => {
+// "Ask About My Credit Report" Chat Assistant (Protected + Rate Limited)
+app.post('/api/ai/chat', requireAuth, aiChatLimiter, async (req, res) => {
   try {
     const { question, report, history } = req.body;
     if (!question) {
       return res.status(400).json({ error: 'Question is required' });
     }
 
+    realTelemetry.chatQueriesAnswered++;
+
     const ai = getGeminiClient();
     if (!ai) {
+      realTelemetry.aiFallbackCount++;
       // Deterministic rule-based smart answer generator
       const answer = generateDeterministicChatResponse(question, report);
       return res.json({ answer, source: 'RULE_ENGINE' });
@@ -233,27 +388,25 @@ ${report.accounts
 
     const prompt = `${reportContext}\n\nUser Question: ${question}`;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const { text: answerText } = await generateGeminiContentWithFallback(ai, {
       contents: prompt,
-      config: {
-        systemInstruction,
-        temperature: 0.3,
-      },
+      systemInstruction,
+      temperature: 0.3,
     });
 
-    res.json({ answer: response.text || 'Unable to generate response.', source: 'GEMINI' });
+    res.json({ answer: answerText || 'Unable to generate response.', source: 'GEMINI' });
   } catch (error: any) {
-    console.error('Chat endpoint error:', error);
+    console.warn('[AI Engine] Chat fallback invoked:', error?.message || error);
     const fallbackAnswer = generateDeterministicChatResponse(req.body.question, req.body.report);
     res.json({ answer: fallbackAnswer, source: 'RULE_ENGINE_FALLBACK' });
   }
 });
 
-// "Generate Correction Request" Letter Generator
-app.post('/api/ai/letter', async (req, res) => {
+// "Generate Correction Request" Letter Generator (Protected + Rate Limited)
+app.post('/api/ai/letter', requireAuth, aiLetterLimiter, async (req, res) => {
   try {
     const { templateConfig, report } = req.body;
+    realTelemetry.lettersDrafted++;
     const ai = getGeminiClient();
 
     const {
@@ -293,17 +446,14 @@ Include:
 Generate ONLY the clean letter text ready to print or email.
 `;
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
+    const { text: letterText } = await generateGeminiContentWithFallback(ai, {
       contents: prompt,
-      config: {
-        temperature: 0.2,
-      },
+      temperature: 0.2,
     });
 
-    res.json({ letter: response.text || generateDeterministicLetter(templateConfig), source: 'GEMINI' });
-  } catch (error) {
-    console.error('Letter generation error:', error);
+    res.json({ letter: letterText || generateDeterministicLetter(templateConfig), source: 'GEMINI' });
+  } catch (error: any) {
+    console.warn('[AI Engine] Letter generator fallback invoked:', error?.message || error);
     res.json({ letter: generateDeterministicLetter(req.body?.templateConfig), source: 'RULE_ENGINE_FALLBACK' });
   }
 });

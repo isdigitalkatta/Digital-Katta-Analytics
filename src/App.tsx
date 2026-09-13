@@ -27,9 +27,13 @@ import { ExportReportView } from './components/ExportReportView';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { PrivacyModal } from './components/PrivacyModal';
 import { ScoreGauge } from './components/ScoreGauge';
+import { AuthModal } from './components/AuthModal';
+import { LegalDisclaimer } from './components/LegalDisclaimer';
+import { useAuth } from './context/AuthContext';
 import { Menu, X } from 'lucide-react';
 
 export function App() {
+  const { getAuthHeaders } = useAuth();
   const [report, setReport] = useState<NormalizedCreditReport | null>(null);
   const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -37,6 +41,7 @@ export function App() {
 
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState<boolean>(false);
+  const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
@@ -61,7 +66,7 @@ export function App() {
 
       const res = await fetch('/api/ai/analyze', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: getAuthHeaders(),
         body: JSON.stringify({
           report: loadedReport,
           deterministicBaseline: baseline,
@@ -115,7 +120,7 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 flex flex-col font-sans text-slate-900">
+    <div className="min-h-screen bg-[#329691] flex flex-col font-sans text-slate-900">
       {/* Top Navigation */}
       <Navbar
         report={report}
@@ -123,6 +128,7 @@ export function App() {
         onSelectDemo={handleSelectDemo}
         onClearReport={handleClearReport}
         onOpenPrivacy={() => setIsPrivacyOpen(true)}
+        onOpenAuth={() => setIsAuthOpen(true)}
         onToggleChat={() => setIsChatOpen(prev => !prev)}
         isChatOpen={isChatOpen}
         isAnalyzing={isAnalyzing}
@@ -181,7 +187,7 @@ export function App() {
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50/95">
               {/* Mobile Menu Toggle button */}
               <div className="md:hidden mb-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
                 <button
@@ -346,6 +352,14 @@ export function App() {
         onPurgeData={handleClearReport}
         hasActiveReport={!!report}
       />
+
+      <AuthModal
+        isOpen={isAuthOpen}
+        onClose={() => setIsAuthOpen(false)}
+      />
+
+      {/* Persistent Regulatory & DPDP Act 2023 Compliance Notice */}
+      <LegalDisclaimer variant="persistent-banner" />
     </div>
   );
 }
