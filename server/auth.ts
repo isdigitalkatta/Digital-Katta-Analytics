@@ -24,19 +24,7 @@ declare global {
 }
 
 // In-memory user directory for session validation
-const usersDb = new Map<string, AuthUser>([
-  [
-    'demo-user',
-    {
-      id: 'usr_demo_001',
-      email: 'demo@digitalkatta.com',
-      name: 'Demo Borrower',
-      role: 'demo',
-      isDemo: true,
-      createdAt: new Date().toISOString(),
-    },
-  ],
-]);
+const usersDb = new Map<string, AuthUser>();
 
 /**
  * Generate a JWT token for a user

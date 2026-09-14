@@ -15,10 +15,14 @@ interface AuthContextType {
   isAuthenticated: boolean;
   isDemo: boolean;
   isLoading: boolean;
+  isAuthModalOpen: boolean;
+  openAuthModal: () => void;
+  closeAuthModal: () => void;
   login: (email: string, name?: string) => Promise<{ success: boolean; error?: string }>;
   loginAsDemo: () => Promise<void>;
   logout: () => void;
   getAuthHeaders: () => Record<string, string>;
+  authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -30,6 +34,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+
+  const openAuthModal = () => setIsAuthModalOpen(true);
+  const closeAuthModal = () => setIsAuthModalOpen(false);
 
   // Initialize session on mount
   useEffect(() => {
@@ -129,6 +137,49 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return headers;
   };
 
+  const authenticatedFetch = async (url: string, init?: RequestInit): Promise<Response> => {
+    let currentToken = token || localStorage.getItem(TOKEN_KEY);
+
+    // If token is completely absent, obtain an instant guest session first
+    if (!currentToken) {
+      try {
+        const res = await fetch('/api/auth/demo', { method: 'POST' });
+        if (res.ok) {
+          const data = await res.json();
+          currentToken = data.token;
+          setToken(data.token);
+          setUser(data.user);
+          localStorage.setItem(TOKEN_KEY, data.token);
+          localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        }
+      } catch (err) {
+        console.warn('Anonymous session auto-provision error:', err);
+      }
+    }
+
+    const customHeaders = (init?.headers as Record<string, string>) || {};
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...customHeaders,
+    };
+
+    if (currentToken) {
+      headers['Authorization'] = `Bearer ${currentToken}`;
+    }
+
+    const response = await fetch(url, {
+      ...init,
+      headers,
+    });
+
+    // Handle 401 (token expired/invalid) or 403 (action requires non-demo full user)
+    if (response.status === 401 || response.status === 403) {
+      setIsAuthModalOpen(true);
+    }
+
+    return response;
+  };
+
   return (
     <AuthContext.Provider
       value={{
@@ -137,10 +188,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isAuthenticated: !!user && !user.isDemo,
         isDemo: !user || user.isDemo,
         isLoading,
+        isAuthModalOpen,
+        openAuthModal,
+        closeAuthModal,
         login,
         loginAsDemo,
         logout,
         getAuthHeaders,
+        authenticatedFetch,
       }}
     >
       {children}

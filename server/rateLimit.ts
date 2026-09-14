@@ -1,9 +1,13 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import { Request } from 'express';
 
-// Key generator based on user ID if authenticated, fallback to IP
-const keyGenerator = (req: Request) => {
-  return (req as any).user?.id || req.ip || 'anonymous';
+// Key generator based on user ID if authenticated, fallback to normalized IP
+const keyGenerator = (req: Request): string => {
+  const userId = (req as any).user?.id;
+  if (userId) {
+    return String(userId);
+  }
+  return ipKeyGenerator(req.ip || '127.0.0.1');
 };
 
 /**

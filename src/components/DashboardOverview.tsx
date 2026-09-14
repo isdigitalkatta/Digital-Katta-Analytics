@@ -16,6 +16,7 @@ import { AIAnalysisResult, NormalizedCreditReport } from '../types';
 import { ScoreGauge } from './ScoreGauge';
 import { formatIndianCurrency } from '../utils/normalizer';
 import { NavTab } from './Sidebar';
+import { LegalDisclaimer } from './LegalDisclaimer';
 
 interface DashboardOverviewProps {
   report: NormalizedCreditReport;
@@ -416,6 +417,9 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Statutory Legal & DPDP Act Compliance Card */}
+      <LegalDisclaimer variant="card" />
     </div>
   );
 };

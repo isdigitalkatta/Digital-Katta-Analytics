@@ -25,7 +25,7 @@ export const LetterGeneratorView: React.FC<LetterGeneratorViewProps> = ({
   prefillAccountId,
   prefillIssueType,
 }) => {
-  const { getAuthHeaders } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const issueTypes = [
     { id: 'Account Closure Update', label: 'Account Closure Not Reflected (NOC Available)' },
     { id: 'Incorrect Overdue Balance', label: 'Spurious / Incorrect Overdue Amount' },
@@ -75,9 +75,8 @@ export const LetterGeneratorView: React.FC<LetterGeneratorViewProps> = ({
         report,
       };
 
-      const res = await fetch('/api/ai/letter', {
+      const res = await authenticatedFetch('/api/ai/letter', {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify(payload),
       });
 
@@ -166,23 +165,67 @@ ${borrowerName}
   };
 
   const printLetter = () => {
-    const printWindow = window.open('', '_blank');
-    if (printWindow) {
-      printWindow.document.write(`
-        <html>
-          <head>
-            <title>Banking Grievance Letter</title>
-            <style>
-              body { font-family: monospace; font-size: 13px; line-height: 1.6; padding: 40px; white-space: pre-wrap; color: #111; }
-            </style>
-          </head>
-          <body>${generatedLetter}</body>
-        </html>
-      `);
-      printWindow.document.close();
-      printWindow.focus();
-      printWindow.print();
+    try {
+      const printIframe = document.createElement('iframe');
+      printIframe.setAttribute('title', 'Print Letter Frame');
+      printIframe.style.position = 'fixed';
+      printIframe.style.right = '0';
+      printIframe.style.bottom = '0';
+      printIframe.style.width = '0';
+      printIframe.style.height = '0';
+      printIframe.style.border = '0';
+      printIframe.style.visibility = 'hidden';
+      document.body.appendChild(printIframe);
+
+      const doc = printIframe.contentWindow?.document;
+      if (doc) {
+        doc.open();
+        doc.write(`
+          <!DOCTYPE html>
+          <html>
+            <head>
+              <title>Banking Grievance Letter - ${borrowerName}</title>
+              <style>
+                @page { size: A4 portrait; margin: 20mm; }
+                body {
+                  font-family: 'Courier New', Courier, monospace;
+                  font-size: 13px;
+                  line-height: 1.6;
+                  padding: 24px;
+                  white-space: pre-wrap;
+                  color: #0f172a;
+                  background: #ffffff;
+                }
+              </style>
+            </head>
+            <body>${generatedLetter.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</body>
+          </html>
+        `);
+        doc.close();
+
+        setTimeout(() => {
+          try {
+            printIframe.contentWindow?.focus();
+            printIframe.contentWindow?.print();
+          } catch (e) {
+            console.warn('Iframe print error, falling back to download:', e);
+            downloadTextFile();
+          } finally {
+            setTimeout(() => {
+              try {
+                document.body.removeChild(printIframe);
+              } catch (_) {}
+            }, 3000);
+          }
+        }, 300);
+        return;
+      }
+    } catch (err) {
+      console.warn('Print iframe creation error:', err);
     }
+
+    // Fallback if print is prohibited
+    downloadTextFile();
   };
 
   return (

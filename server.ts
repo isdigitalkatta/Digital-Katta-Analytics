@@ -37,8 +37,8 @@ app.use(express.json({ limit: '20mb' }));
 // General Rate Limiting across all API routes
 app.use('/api/', generalLimiter);
 
-// Authentic, privacy-safe runtime metrics (No fabricated promotional data)
-const realTelemetry = {
+// Authentic, privacy-safe runtime metrics (No fabricated promotional or seed data)
+const anonymousStats = {
   serverStartTime: new Date().toISOString(),
   reportsAnalyzed: 0,
   successfulParses: 0,
@@ -53,6 +53,7 @@ const realTelemetry = {
   },
   aiFallbackCount: 0,
 };
+const realTelemetry = anonymousStats;
 
 // Lazy initialization of Gemini client
 let geminiClient: GoogleGenAI | null = null;
@@ -82,11 +83,13 @@ async function generateGeminiContentWithFallback(
     responseMimeType?: string;
   }
 ): Promise<{ text: string; modelUsed: string }> {
-  // gemini-3.1-flash-lite is the most responsive, high-throughput model with highest availability
+  // Configurable primary model with high-throughput fallbacks
+  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
   const candidateModels = [
+    primaryModel,
     'gemini-3.1-flash-lite',
     'gemini-3.8-flash',
-  ];
+  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
 
   let lastError: any = null;
 
@@ -188,24 +191,28 @@ app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true, message: 'Session terminated. Zero local or server state retained.' });
 });
 
-// Real Privacy-Safe Runtime Telemetry
+// Real Privacy-Safe Runtime Telemetry (anonymousStats starts at 0, no fake promotional metrics)
 app.get('/api/stats', (req, res) => {
   const uptimeSeconds = Math.floor(process.uptime());
   res.json({
-    totalReportsAnalyzed: realTelemetry.reportsAnalyzed,
-    successfulParses: realTelemetry.successfulParses,
-    lettersDrafted: realTelemetry.lettersDrafted,
-    chatQueriesAnswered: realTelemetry.chatQueriesAnswered,
+    totalReportsAnalyzed: anonymousStats.reportsAnalyzed,
+    successfulParses: anonymousStats.successfulParses,
+    lettersDrafted: anonymousStats.lettersDrafted,
+    chatQueriesAnswered: anonymousStats.chatQueriesAnswered,
     uptimeSeconds,
     aiAvailable: envConfig.hasGeminiKey,
     zeroRetentionActive: true,
-    bureauDistribution: realTelemetry.bureauFormatDistribution,
+    bureauDistribution: anonymousStats.bureauFormatDistribution,
   });
 });
 
 app.post('/api/stats/track', (req, res) => {
-  realTelemetry.successfulParses++;
-  res.json({ success: true, count: realTelemetry.successfulParses });
+  const { format } = req.body || {};
+  anonymousStats.successfulParses++;
+  if (format && (anonymousStats.bureauFormatDistribution as any)[format] !== undefined) {
+    (anonymousStats.bureauFormatDistribution as any)[format]++;
+  }
+  res.json({ success: true, count: anonymousStats.successfulParses });
 });
 
 // Server-side report parser fallback endpoint
@@ -215,10 +222,11 @@ app.post('/api/parse/report', requireAuth, (req, res) => {
     if (!report || !report.personal || !report.score) {
       return res.status(400).json({ error: 'Invalid credit report structure provided.' });
     }
-    realTelemetry.successfulParses++;
+    anonymousStats.successfulParses++;
     res.json({ success: true, report });
   } catch (err: any) {
-    res.status(500).json({ error: 'Server parsing error: ' + err.message });
+    console.error('[Report Parse Error]', sanitizeForLogging(err));
+    res.status(500).json({ error: 'Server parsing error: ' + sanitizeForLogging(err?.message || 'Unknown parsing error') });
   }
 });
 
@@ -230,11 +238,11 @@ app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
       return res.status(400).json({ error: 'Credit report payload is required' });
     }
 
-    realTelemetry.reportsAnalyzed++;
+    anonymousStats.reportsAnalyzed++;
 
     const ai = getGeminiClient();
     if (!ai) {
-      realTelemetry.aiFallbackCount++;
+      anonymousStats.aiFallbackCount++;
       return res.json({
         result: {
           ...deterministicBaseline,
@@ -314,7 +322,7 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
     if (validationResult.success) {
       return res.json({ result: { ...validationResult.data, generatedByAI: true } });
     } else {
-      console.warn('AI JSON schema validation mismatch, falling back to baseline:', validationResult.error.message);
+      console.warn('[AI Engine] Schema mismatch, falling back to baseline:', sanitizeForLogging(validationResult.error.message));
       return res.json({
         result: {
           ...deterministicBaseline,
@@ -324,7 +332,7 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
       });
     }
   } catch (error: any) {
-    console.warn('[AI Engine] Temporary model unavailability. Safely serving deterministic credit baseline:', error?.message || error);
+    console.warn('[AI Engine] Model unavailable, serving deterministic baseline:', sanitizeForLogging(error?.message || error));
     // Graceful fallback to deterministic baseline
     const baseline = req.body?.deterministicBaseline;
     return res.json({
@@ -370,15 +378,15 @@ RULES:
 
     const reportContext = `
 USER'S CREDIT REPORT CONTEXT:
-- Name: ${report.personal?.name}
-- CIBIL Score: ${report.score?.score} (${report.score?.category})
-- Total Accounts: ${report.summary?.totalAccounts} (Active: ${report.summary?.activeAccounts}, Closed: ${report.summary?.closedAccounts}, Negative: ${report.summary?.negativeAccounts})
-- Total Outstanding: ₹${report.summary?.totalOutstanding?.toLocaleString('en-IN')}
-- Active Overdue: ₹${report.summary?.totalOverdue?.toLocaleString('en-IN')}
-- Credit Card Utilization: ${report.summary?.creditCardUtilizationPct}% (Limit: ₹${report.summary?.totalCreditCardLimit?.toLocaleString('en-IN')}, Balance: ₹${report.summary?.totalCreditCardBalance?.toLocaleString('en-IN')})
-- Recent Inquiries (90 Days): ${report.summary?.enquiriesLast90Days}
+- Name: ${report?.personal?.name}
+- CIBIL Score: ${report?.score?.score} (${report?.score?.category})
+- Total Accounts: ${report?.summary?.totalAccounts} (Active: ${report?.summary?.activeAccounts}, Closed: ${report?.summary?.closedAccounts}, Negative: ${report?.summary?.negativeAccounts})
+- Total Outstanding: ₹${report?.summary?.totalOutstanding?.toLocaleString('en-IN')}
+- Active Overdue: ₹${report?.summary?.totalOverdue?.toLocaleString('en-IN')}
+- Credit Card Utilization: ${report?.summary?.creditCardUtilizationPct}% (Limit: ₹${report?.summary?.totalCreditCardLimit?.toLocaleString('en-IN')}, Balance: ₹${report?.summary?.totalCreditCardBalance?.toLocaleString('en-IN')})
+- Recent Inquiries (90 Days): ${report?.summary?.enquiriesLast90Days}
 - Accounts List:
-${report.accounts
+${report?.accounts
   ?.map(
     (a: any) =>
       `  * [${a.lender}] ${a.accountType} (No: ${a.accountNumberMasked}): Balance ₹${a.currentBalance}, Overdue ₹${a.overdueAmount}, Status: "${a.rawStatus}", Max DPD: ${a.maxDPD}`
@@ -396,8 +404,8 @@ ${report.accounts
 
     res.json({ answer: answerText || 'Unable to generate response.', source: 'GEMINI' });
   } catch (error: any) {
-    console.warn('[AI Engine] Chat fallback invoked:', error?.message || error);
-    const fallbackAnswer = generateDeterministicChatResponse(req.body.question, req.body.report);
+    console.warn('[AI Engine] Chat fallback invoked:', sanitizeForLogging(error?.message || error));
+    const fallbackAnswer = generateDeterministicChatResponse(req.body?.question, req.body?.report);
     res.json({ answer: fallbackAnswer, source: 'RULE_ENGINE_FALLBACK' });
   }
 });
@@ -453,7 +461,7 @@ Generate ONLY the clean letter text ready to print or email.
 
     res.json({ letter: letterText || generateDeterministicLetter(templateConfig), source: 'GEMINI' });
   } catch (error: any) {
-    console.warn('[AI Engine] Letter generator fallback invoked:', error?.message || error);
+    console.warn('[AI Engine] Letter generator fallback invoked:', sanitizeForLogging(error?.message || error));
     res.json({ letter: generateDeterministicLetter(req.body?.templateConfig), source: 'RULE_ENGINE_FALLBACK' });
   }
 });
@@ -549,6 +557,15 @@ ___________________________
 ${config?.borrowerName || 'Authorized Signatory'}
 `;
 }
+
+// Global Express Error Handler with Sanitized Output (No PII leakage in logs)
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error('[Unhandled Server Error]', sanitizeForLogging(err));
+  res.status(500).json({
+    error: 'An internal server error occurred while processing credit data.',
+    details: process.env.NODE_ENV === 'production' ? undefined : sanitizeForLogging(err?.message || err),
+  });
+});
 
 async function startServer() {
   // Vite integration

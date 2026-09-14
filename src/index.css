@@ -20,15 +20,55 @@
 }
 
 @media print {
+  @page {
+    size: A4 portrait;
+    margin: 10mm;
+  }
+
+  html,
   body {
     background-color: #ffffff !important;
+    background: #ffffff !important;
     color: #0f172a !important;
+    height: auto !important;
+    min-height: 0 !important;
+    overflow: visible !important;
   }
-  .no-print {
+
+  /* Expand all flex & overflow containers so multi-page reports print without vertical cutoff */
+  #root,
+  .min-h-screen,
+  .overflow-hidden,
+  .overflow-y-auto,
+  main {
+    height: auto !important;
+    max-height: none !important;
+    min-height: 0 !important;
+    overflow: visible !important;
+    display: block !important;
+    background: transparent !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Hide app chrome, sidebars, headers, floating bars, and banners */
+  nav,
+  aside,
+  header,
+  .no-print,
+  .print\:hidden,
+  [data-no-print="true"] {
     display: none !important;
   }
+
+  /* Force background colors and exact border rendering */
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
   .print-break-inside-avoid {
-    break-inside: avoid;
-    page-break-inside: avoid;
+    break-inside: avoid !important;
+    page-break-inside: avoid !important;
   }
 }

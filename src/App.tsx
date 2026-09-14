@@ -33,7 +33,7 @@ import { useAuth } from './context/AuthContext';
 import { Menu, X } from 'lucide-react';
 
 export function App() {
-  const { getAuthHeaders } = useAuth();
+  const { isAuthModalOpen, openAuthModal, closeAuthModal, authenticatedFetch } = useAuth();
   const [report, setReport] = useState<NormalizedCreditReport | null>(null);
   const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
@@ -64,9 +64,8 @@ export function App() {
       // Track analytics anonymously
       fetch('/api/stats/track', { method: 'POST' }).catch(() => {});
 
-      const res = await fetch('/api/ai/analyze', {
+      const res = await authenticatedFetch('/api/ai/analyze', {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           report: loadedReport,
           deterministicBaseline: baseline,
@@ -120,22 +119,24 @@ export function App() {
   };
 
   return (
-    <div className="min-h-screen bg-[#329691] flex flex-col font-sans text-slate-900">
+    <div className="min-h-screen bg-[#329691] flex flex-col font-sans text-slate-900 print:bg-white print:min-h-0">
       {/* Top Navigation */}
-      <Navbar
-        report={report}
-        onOpenUpload={() => setIsUploadOpen(true)}
-        onSelectDemo={handleSelectDemo}
-        onClearReport={handleClearReport}
-        onOpenPrivacy={() => setIsPrivacyOpen(true)}
-        onOpenAuth={() => setIsAuthOpen(true)}
-        onToggleChat={() => setIsChatOpen(prev => !prev)}
-        isChatOpen={isChatOpen}
-        isAnalyzing={isAnalyzing}
-      />
+      <div className="print:hidden">
+        <Navbar
+          report={report}
+          onOpenUpload={() => setIsUploadOpen(true)}
+          onSelectDemo={handleSelectDemo}
+          onClearReport={handleClearReport}
+          onOpenPrivacy={() => setIsPrivacyOpen(true)}
+          onOpenAuth={openAuthModal}
+          onToggleChat={() => setIsChatOpen(prev => !prev)}
+          isChatOpen={isChatOpen}
+          isAnalyzing={isAnalyzing}
+        />
+      </div>
 
       {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden">
+      <div className="flex-1 flex overflow-hidden print:overflow-visible print:block">
         {/* If no report is loaded, show Landing Page */}
         {!report || !analysis ? (
           <LandingPage
@@ -144,9 +145,9 @@ export function App() {
             onOpenPrivacy={() => setIsPrivacyOpen(true)}
           />
         ) : (
-          <div className="flex-1 flex overflow-hidden">
+          <div className="flex-1 flex overflow-hidden print:overflow-visible print:block">
             {/* Desktop Left Sidebar */}
-            <div className="hidden md:block">
+            <div className="hidden md:block print:hidden">
               <Sidebar
                 currentTab={currentTab}
                 onSelectTab={tab => setCurrentTab(tab)}
@@ -158,7 +159,7 @@ export function App() {
 
             {/* Mobile Sidebar Overlay */}
             {isMobileSidebarOpen && (
-              <div className="fixed inset-0 z-50 md:hidden flex">
+              <div className="fixed inset-0 z-50 md:hidden flex print:hidden">
                 <div
                   className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
                   onClick={() => setIsMobileSidebarOpen(false)}
@@ -187,9 +188,9 @@ export function App() {
             )}
 
             {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50/95">
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50/95 print:p-0 print:bg-white print:overflow-visible">
               {/* Mobile Menu Toggle button */}
-              <div className="md:hidden mb-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200">
+              <div className="md:hidden mb-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 print:hidden">
                 <button
                   onClick={() => setIsMobileSidebarOpen(true)}
                   className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer"
@@ -354,12 +355,15 @@ export function App() {
       />
 
       <AuthModal
-        isOpen={isAuthOpen}
-        onClose={() => setIsAuthOpen(false)}
+        isOpen={isAuthOpen || isAuthModalOpen}
+        onClose={() => {
+          setIsAuthOpen(false);
+          closeAuthModal();
+        }}
       />
 
       {/* Persistent Regulatory & DPDP Act 2023 Compliance Notice */}
-      <LegalDisclaimer variant="persistent-banner" />
+      <LegalDisclaimer variant="persistent-banner" className="print:hidden" />
     </div>
   );
 }

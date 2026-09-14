@@ -34,7 +34,7 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
   onClose,
   isDrawer = true,
 }) => {
-  const { getAuthHeaders } = useAuth();
+  const { authenticatedFetch } = useAuth();
   const quickQuestions = [
     'Why is my CIBIL score low?',
     'Which account is hurting my profile most?',
@@ -82,9 +82,8 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
     setIsLoading(true);
 
     try {
-      const res = await fetch('/api/ai/chat', {
+      const res = await authenticatedFetch('/api/ai/chat', {
         method: 'POST',
-        headers: getAuthHeaders(),
         body: JSON.stringify({
           question: q.trim(),
           report,
