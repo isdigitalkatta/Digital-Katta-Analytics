@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   CalendarDays,
   CheckCircle2,
@@ -16,6 +17,7 @@ interface ActionPlanViewProps {
 }
 
 export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) => {
+  const { t } = useTranslation();
   // Checkbox tracking state
   const [completedTasks, setCompletedTasks] = useState<Record<string, boolean>>({});
 
@@ -29,7 +31,7 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) =>
   const stages = [
     {
       id: 'first7Days',
-      title: 'First 7 Days (Immediate Action & Audit)',
+      title: t('actionPlan.phase1Title', 'First 7 Days (Immediate Action & Audit)'),
       subtitle: 'Gather evidence, verify exact outstanding balances, and check personal identity lines.',
       tasks: actionPlan.first7Days,
       badge: 'Immediate',
@@ -37,7 +39,7 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) =>
     },
     {
       id: 'days8To30',
-      title: 'Days 8 to 30 (Resolution & Dispute Submission)',
+      title: t('actionPlan.phase2Title', 'Days 8 to 30 (Resolution & Dispute Submission)'),
       subtitle: 'Clear active overdue balances, bring card utilization under 30%, and submit formal disputes.',
       tasks: actionPlan.days8To30,
       badge: 'Month 1',
@@ -45,7 +47,7 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) =>
     },
     {
       id: 'days31To60',
-      title: 'Days 31 to 60 (Lender Follow-up & Clean Habit)',
+      title: t('actionPlan.phase3Title', 'Days 31 to 60 (Lender Follow-up & Clean Habit)'),
       subtitle: 'Follow up on 30-day dispute turnaround times, maintain 100% on-time auto-debits, and request limit increases.',
       tasks: actionPlan.days31To60,
       badge: 'Month 2',
@@ -53,7 +55,7 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) =>
     },
     {
       id: 'days61To90',
-      title: 'Days 61 to 90 (Bureau Refresh & Long-term Health)',
+      title: t('actionPlan.phase4Title', 'Days 61 to 90 (Bureau Refresh & Long-term Health)'),
       subtitle: 'Pull updated CIBIL score, verify corrected closed/settled tags, and sustain low debt ratios.',
       tasks: actionPlan.days61To90,
       badge: 'Month 3',
@@ -73,11 +75,11 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) =>
           <div className="flex items-center gap-2">
             <CalendarDays className="w-5 h-5 text-blue-600" />
             <h2 className="text-xl font-bold text-slate-900 font-heading">
-              Personalized 30 / 60 / 90-Day Action Plan
+              {t('actionPlan.title', 'Personalized 30 / 60 / 90-Day Action Plan')}
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Prioritized recovery roadmap tailored specifically to your active overdue, utilization, and account remarks
+            {t('actionPlan.subtitle', 'Prioritized recovery roadmap tailored specifically to your active overdue, utilization, and account remarks')}
           </p>
         </div>
 
@@ -85,7 +87,7 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan }) =>
         <div className="flex items-center gap-3 bg-slate-50 p-2.5 rounded-xl border border-slate-200/80">
           <div className="text-right">
             <span className="text-xs font-bold text-slate-900 block">
-              {completedCount} of {totalTasks} Completed
+              {completedCount} of {totalTasks} {t('actionPlan.stepCompleted', 'Completed')}
             </span>
             <span className="text-[10px] text-slate-500">{progressPct}% of roadmap</span>
           </div>

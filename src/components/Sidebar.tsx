@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ShieldAlert,
   CreditCard,
@@ -48,6 +49,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
   disputeCount,
   isDemo,
 }) => {
+  const { t } = useTranslation();
+
   const navItems: Array<{
     id: NavTab;
     label: string;
@@ -55,32 +58,32 @@ export const Sidebar: React.FC<SidebarProps> = ({
     badge?: number | string;
     badgeColor?: string;
   }> = [
-    { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { id: 'score', label: 'Credit Score', icon: ShieldCheck },
-    { id: 'accounts', label: 'All Accounts', icon: CreditCard },
+    { id: 'dashboard', label: t('nav.dashboard'), icon: LayoutDashboard },
+    { id: 'score', label: t('dashboard.scoreCardTitle'), icon: ShieldCheck },
+    { id: 'accounts', label: t('nav.allAccounts'), icon: CreditCard },
     {
       id: 'negative',
-      label: 'Negative Accounts',
+      label: t('nav.negativeAccounts'),
       icon: ShieldAlert,
       badge: negativeAccountsCount > 0 ? negativeAccountsCount : undefined,
       badgeColor: 'bg-rose-500 text-white',
     },
-    { id: 'history', label: 'Payment History', icon: History },
-    { id: 'enquiries', label: 'Enquiries', icon: Search },
-    { id: 'utilization', label: 'Credit Utilization', icon: PieChart },
-    { id: 'ai-analysis', label: 'AI Diagnosis', icon: BrainCircuit },
+    { id: 'history', label: t('nav.paymentHistory'), icon: History },
+    { id: 'enquiries', label: t('nav.enquiries'), icon: Search },
+    { id: 'utilization', label: t('nav.utilizationMix'), icon: PieChart },
+    { id: 'ai-analysis', label: t('dashboard.aiAnalysisBadge'), icon: BrainCircuit },
     {
       id: 'disputes',
-      label: 'Dispute Opportunities',
+      label: t('nav.disputes'),
       icon: FileCheck2,
       badge: disputeCount > 0 ? disputeCount : undefined,
       badgeColor: 'bg-amber-500 text-white',
     },
-    { id: 'action-plan', label: 'Action Plan (30-60-90)', icon: CalendarDays },
-    { id: 'letter', label: 'Generate Letter', icon: FileText },
-    { id: 'export', label: 'Export Report', icon: Download },
-    { id: 'admin', label: 'Admin Insights', icon: BarChart3 },
-    { id: 'settings', label: 'Privacy & Settings', icon: Settings },
+    { id: 'action-plan', label: t('nav.actionPlan'), icon: CalendarDays },
+    { id: 'letter', label: t('nav.letterGenerator'), icon: FileText },
+    { id: 'export', label: t('nav.exportReport'), icon: Download },
+    { id: 'admin', label: t('nav.adminPortal'), icon: BarChart3 },
+    { id: 'settings', label: t('nav.privacy'), icon: Settings },
   ];
 
   return (

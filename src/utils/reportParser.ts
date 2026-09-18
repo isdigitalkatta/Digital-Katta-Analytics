@@ -43,8 +43,8 @@ export async function parseCreditReportFile(
   file: File,
   onProgress?: ParseProgressCallback
 ): Promise<NormalizedCreditReport> {
-  const fileName = file.name;
-  const extension = fileName.split('.').pop()?.toLowerCase() || '';
+  const fileName = file?.name || '';
+  const extension = fileName.includes('.') ? fileName.split('.').pop()?.toLowerCase() || '' : '';
 
   onProgress?.('Reading uploaded file...', 15);
 

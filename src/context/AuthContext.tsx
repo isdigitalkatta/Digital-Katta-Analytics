@@ -1,13 +1,19 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { STORAGE_LANG_KEY, DEFAULT_LANGUAGE } from '../i18n/types';
 
 export interface User {
   id: string;
-  email: string;
+  email?: string;
+  phone?: string;
   name: string;
+  provider?: 'email' | 'phone_otp' | 'whatsapp' | 'google' | 'demo';
   role: 'user' | 'demo' | 'admin';
   isDemo: boolean;
+  avatarUrl?: string;
   createdAt: string;
 }
+
+export type AuthMethodTab = 'otp' | 'google' | 'email' | 'whatsapp';
 
 interface AuthContextType {
   user: User | null;
@@ -16,9 +22,14 @@ interface AuthContextType {
   isDemo: boolean;
   isLoading: boolean;
   isAuthModalOpen: boolean;
-  openAuthModal: () => void;
+  activeAuthTab: AuthMethodTab;
+  setActiveAuthTab: (tab: AuthMethodTab) => void;
+  openAuthModal: (initialTab?: AuthMethodTab) => void;
   closeAuthModal: () => void;
   login: (email: string, name?: string) => Promise<{ success: boolean; error?: string }>;
+  loginWithGoogle: (profile?: { email: string; name?: string; avatarUrl?: string }) => Promise<{ success: boolean; error?: string }>;
+  sendOtp: (phone: string, channel: 'sms' | 'whatsapp') => Promise<{ success: boolean; error?: string; demoCode?: string; message?: string }>;
+  verifyOtp: (phone: string, otp: string, channel: 'sms' | 'whatsapp', name?: string) => Promise<{ success: boolean; error?: string }>;
   loginAsDemo: () => Promise<void>;
   logout: () => void;
   getAuthHeaders: () => Record<string, string>;
@@ -35,8 +46,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState<boolean>(false);
+  const [activeAuthTab, setActiveAuthTab] = useState<AuthMethodTab>('otp');
 
-  const openAuthModal = () => setIsAuthModalOpen(true);
+  const openAuthModal = (initialTab?: AuthMethodTab) => {
+    if (initialTab) setActiveAuthTab(initialTab);
+    setIsAuthModalOpen(true);
+  };
   const closeAuthModal = () => setIsAuthModalOpen(false);
 
   // Initialize session on mount
@@ -113,6 +128,82 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const loginWithGoogle = async (profile?: { email?: string; name?: string; avatarUrl?: string }) => {
+    try {
+      const targetEmail = profile?.email || 'user.google@digitalkatta.com';
+      const targetName = profile?.name || 'Google Verified User';
+      const avatarUrl = profile?.avatarUrl;
+
+      const res = await fetch('/api/auth/google', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: targetEmail,
+          name: targetName,
+          avatarUrl,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'Google authentication failed' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error during Google login' };
+    }
+  };
+
+  const sendOtp = async (phone: string, channel: 'sms' | 'whatsapp') => {
+    try {
+      const endpoint = channel === 'whatsapp' ? '/api/auth/whatsapp/send' : '/api/auth/otp/send';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        return {
+          success: true,
+          demoCode: data.demoCode,
+          message: data.message,
+        };
+      } else {
+        return { success: false, error: data.error || 'Failed to send OTP' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error while requesting OTP' };
+    }
+  };
+
+  const verifyOtp = async (phone: string, otp: string, channel: 'sms' | 'whatsapp', name?: string) => {
+    try {
+      const endpoint = channel === 'whatsapp' ? '/api/auth/whatsapp/verify' : '/api/auth/otp/verify';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone, otp, name }),
+      });
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setToken(data.token);
+        setUser(data.user);
+        localStorage.setItem(TOKEN_KEY, data.token);
+        localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        return { success: true };
+      } else {
+        return { success: false, error: data.error || 'Invalid or expired OTP' };
+      }
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Network error verifying OTP' };
+    }
+  };
+
   const loginAsDemo = async () => {
     await initializeDemo();
   };
@@ -121,15 +212,30 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     localStorage.removeItem(TOKEN_KEY);
     localStorage.removeItem(USER_KEY);
+    try {
+      sessionStorage.removeItem('digitalkatta_session_unlocked');
+      window.dispatchEvent(new Event('digitalkatta_logout'));
+    } catch (_) {}
     setUser(null);
     setToken(null);
     // Restart as fresh demo session
     initializeDemo();
   };
 
+  const getCurrentLanguage = (): string => {
+    try {
+      return localStorage.getItem(STORAGE_LANG_KEY) || DEFAULT_LANGUAGE;
+    } catch {
+      return DEFAULT_LANGUAGE;
+    }
+  };
+
   const getAuthHeaders = (): Record<string, string> => {
+    const currentLang = getCurrentLanguage();
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-Language': currentLang,
+      'Accept-Language': currentLang,
     };
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
@@ -157,9 +263,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       }
     }
 
+    const currentLang = getCurrentLanguage();
     const customHeaders = (init?.headers as Record<string, string>) || {};
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
+      'X-Language': currentLang,
+      'Accept-Language': currentLang,
       ...customHeaders,
     };
 
@@ -189,9 +298,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         isDemo: !user || user.isDemo,
         isLoading,
         isAuthModalOpen,
+        activeAuthTab,
+        setActiveAuthTab,
         openAuthModal,
         closeAuthModal,
         login,
+        loginWithGoogle,
+        sendOtp,
+        verifyOtp,
         loginAsDemo,
         logout,
         getAuthHeaders,

@@ -59,7 +59,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
     setErrorMessage(null);
     setSelectedFile(file);
 
-    const ext = file.name.split('.').pop()?.toLowerCase();
+    const ext = file?.name?.split('.').pop()?.toLowerCase();
     if (!['pdf', 'html', 'htm', 'json'].includes(ext || '')) {
       setErrorMessage(
         'Unsupported format. Please upload your CIBIL credit report in .PDF, .HTML, or .JSON format.'
@@ -144,10 +144,17 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             </p>
           </div>
 
-          {/* Statutory DPDP Act 2023 Consent Checkbox */}
-          <label className="flex items-start gap-2.5 p-3 rounded-xl border border-slate-200 hover:border-slate-300 bg-slate-50/70 cursor-pointer select-none transition-colors">
+          {/* Statutory DPDP Act 2023 Consent Checkbox (MANDATORY) */}
+          <label
+            className={`flex items-start gap-2.5 p-3.5 rounded-xl border transition-all cursor-pointer select-none ${
+              hasGivenConsent
+                ? 'border-teal-300 bg-teal-50/40'
+                : 'border-amber-300 bg-amber-50/40 shadow-2xs'
+            }`}
+          >
             <input
               type="checkbox"
+              id="dpdp-consent-checkbox"
               checked={hasGivenConsent}
               onChange={(e) => {
                 setHasGivenConsent(e.target.checked);
@@ -156,10 +163,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
               className="mt-0.5 w-4 h-4 rounded text-[#329691] focus:ring-[#329691] border-slate-300 cursor-pointer"
             />
             <span className="text-[11px] text-slate-700 leading-snug">
-              <strong className="text-slate-900 block font-semibold mb-0.5">
-                Data Principal Consent (DPDP Act 2023, India)
+              <strong className="text-slate-900 block font-semibold mb-0.5 flex items-center gap-1.5">
+                <span>Data Principal Statutory Consent (DPDP Act 2023, India)</span>
+                <span className="text-[10px] font-bold uppercase px-1.5 py-0.2 rounded bg-amber-200/80 text-amber-900">
+                  Required
+                </span>
               </strong>
-              I give explicit consent to parse and analyze my credit report. I acknowledge that all processing is transient with zero permanent remote server retention, and is not a guarantee of credit score improvement.
+              I provide express consent to transiently parse and analyze my credit report. I acknowledge that all processing operates with zero permanent server retention and does not constitute official bureau dispute filing or guaranteed credit rating score increases.
             </span>
           </label>
 
@@ -168,12 +178,31 @@ export const UploadModal: React.FC<UploadModalProps> = ({
             onDragEnter={handleDrag}
             onDragLeave={handleDrag}
             onDragOver={handleDrag}
-            onDrop={handleDrop}
-            onClick={() => !isLoading && fileInputRef.current?.click()}
+            onDrop={(e) => {
+              if (!hasGivenConsent) {
+                e.preventDefault();
+                e.stopPropagation();
+                setErrorMessage('Mandatory: Please check the DPDP Act consent checkbox above before uploading your credit report.');
+                return;
+              }
+              handleDrop(e);
+            }}
+            onClick={() => {
+              if (isLoading) return;
+              if (!hasGivenConsent) {
+                setErrorMessage('Mandatory: Please check the DPDP Act consent checkbox above before uploading your credit report.');
+                const chk = document.getElementById('dpdp-consent-checkbox');
+                chk?.focus();
+                return;
+              }
+              fileInputRef.current?.click();
+            }}
             className={`border-2 border-dashed rounded-2xl p-6 text-center transition-all cursor-pointer ${
               dragActive
                 ? 'border-blue-500 bg-blue-50/50'
-                : 'border-slate-200 hover:border-slate-300 bg-slate-50/50'
+                : !hasGivenConsent
+                ? 'border-slate-300 hover:border-amber-400 bg-slate-50/50'
+                : 'border-[#329691]/50 hover:border-[#329691] bg-slate-50/50'
             } ${isLoading ? 'pointer-events-none opacity-80' : ''}`}
           >
             <input

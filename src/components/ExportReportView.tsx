@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Printer,
   Download,
@@ -12,7 +13,12 @@ import { AIAnalysisResult, NormalizedCreditReport } from '../types';
 import { formatIndianCurrency } from '../utils/normalizer';
 import { CompanyLogo } from './CompanyLogo';
 import { LegalDisclaimer } from './LegalDisclaimer';
-import { exportReportToPdf, printReportDocument } from '../utils/pdfExport';
+import {
+  exportReportToPdf,
+  printReportDocument,
+  downloadAiAnalysisReportPdf,
+} from '../utils/pdfExport';
+import { useAuth } from '../context/AuthContext';
 
 interface ExportReportViewProps {
   report: NormalizedCreditReport;
@@ -23,6 +29,8 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
   report,
   analysis,
 }) => {
+  const { t, i18n } = useTranslation();
+  const { authenticatedFetch } = useAuth();
   const [isExportingPdf, setIsExportingPdf] = useState(false);
   const [pdfProgressText, setPdfProgressText] = useState('');
   const [statusMessage, setStatusMessage] = useState<{
@@ -38,7 +46,9 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
     setIsExportingPdf(true);
     setStatusMessage(null);
 
+    // Attempt 1: High-fidelity client-side snapshot via html2canvas & jsPDF
     try {
+      setPdfProgressText('Capturing report layout...');
       await exportReportToPdf('printable-credit-report', {
         fileName: reportFileName,
         onProgress: (status) => setPdfProgressText(status),
@@ -46,13 +56,62 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
 
       setStatusMessage({
         type: 'success',
-        text: `PDF successfully downloaded (${reportFileName}).`,
+        text: `PDF downloaded successfully (${reportFileName}).`,
       });
-    } catch (err: any) {
-      console.error('Failed to export PDF:', err);
+      return;
+    } catch (clientErr: any) {
+      console.warn(
+        'Client-side PDF generation failed or was restricted, invoking server-side PDF generator:',
+        clientErr
+      );
+    }
+
+    // Attempt 2: Server-side PDF generation fallback via pdf-lib
+    try {
+      setPdfProgressText('Generating PDF document on server...');
+      const response = await authenticatedFetch('/api/export/pdf', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ report, analysis }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || `Server PDF generator returned HTTP ${response.status}`);
+      }
+
+      setPdfProgressText('Downloading document...');
+      const blob = await response.blob();
+      if (!blob || blob.size === 0) {
+        throw new Error('Received empty PDF blob from server.');
+      }
+
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = blobUrl;
+      anchor.download = reportFileName;
+      anchor.style.display = 'none';
+      document.body.appendChild(anchor);
+      anchor.click();
+
+      setTimeout(() => {
+        try {
+          document.body.removeChild(anchor);
+          URL.revokeObjectURL(blobUrl);
+        } catch (_) {}
+      }, 2500);
+
+      setStatusMessage({
+        type: 'success',
+        text: `PDF generated and downloaded via server engine (${reportFileName}).`,
+      });
+    } catch (serverErr: any) {
+      console.error('All PDF export mechanisms failed:', serverErr);
       setStatusMessage({
         type: 'error',
-        text: err?.message || 'Could not generate PDF. Please try printing or downloading JSON data.',
+        text: `Could not complete PDF export: ${serverErr?.message || 'Download blocked'}. You can still use Print Report or download JSON data.`,
       });
     } finally {
       setIsExportingPdf(false);
@@ -102,6 +161,33 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
     });
   };
 
+  const handleDownloadAiPdf = async () => {
+    if (isExportingPdf) return;
+    setIsExportingPdf(true);
+    setStatusMessage(null);
+    setPdfProgressText('Generating AI Analysis PDF with Logo & Key Levers...');
+
+    try {
+      await downloadAiAnalysisReportPdf(report, analysis, {
+        onProgress: (status) => setPdfProgressText(status),
+        language: i18n.language,
+      });
+      setStatusMessage({
+        type: 'success',
+        text: 'Executive AI Analysis Report PDF with Logo downloaded successfully!',
+      });
+    } catch (err: any) {
+      console.error('Failed to generate AI analysis PDF:', err);
+      setStatusMessage({
+        type: 'error',
+        text: 'Failed to generate AI Analysis PDF. Please try again.',
+      });
+    } finally {
+      setIsExportingPdf(false);
+      setPdfProgressText('');
+    }
+  };
+
   return (
     <div className="space-y-6 pb-16">
       {/* Non-printed Toolbar */}
@@ -109,14 +195,14 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-bold text-slate-900 font-heading">
-              AI Credit Health Diagnostic Report
+              {t('export.title', 'AI Credit Health Diagnostic Report')}
             </h2>
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-50 text-teal-700 border border-teal-200">
-              Print & PDF Ready
+              {t('export.readyBadge', 'Print & PDF Ready')}
             </span>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Export a comprehensive dossier including score breakdown, negative accounts, dispute checklist, and 30/60/90 action plan
+            {t('export.subtitle', 'Export a comprehensive dossier including score breakdown, negative accounts, dispute checklist, and 30/60/90 action plan')}
           </p>
         </div>
 
@@ -127,7 +213,7 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
             title="Export raw structured data"
           >
             <Download className="w-3.5 h-3.5" />
-            <span>Data (JSON)</span>
+            <span>{t('export.downloadJson', 'Data (JSON)')}</span>
           </button>
 
           <button
@@ -136,26 +222,36 @@ export const ExportReportView: React.FC<ExportReportViewProps> = ({
             title="Open browser print dialog or print to local printer"
           >
             <Printer className="w-4 h-4 text-slate-600" />
-            <span>Print Report</span>
+            <span>{t('export.print', 'Print Report')}</span>
           </button>
 
           <button
             onClick={handleSavePdf}
             disabled={isExportingPdf}
             className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 disabled:bg-blue-400 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer disabled:cursor-not-allowed"
-            title="Directly compile and download multi-page PDF document"
+            title="Compile full dossier snapshot into multi-page PDF"
           >
             {isExportingPdf ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>{pdfProgressText || 'Generating PDF...'}</span>
+                <span>{pdfProgressText || t('common.loading', 'Generating PDF...')}</span>
               </>
             ) : (
               <>
                 <FileText className="w-4 h-4" />
-                <span>Save as PDF (.pdf)</span>
+                <span>{t('export.downloadPdf', 'Full Dossier PDF')}</span>
               </>
             )}
+          </button>
+
+          <button
+            onClick={handleDownloadAiPdf}
+            disabled={isExportingPdf}
+            className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-[#F56B2B] hover:bg-[#E05A1D] disabled:bg-orange-300 transition-colors flex items-center gap-1.5 shadow-xs cursor-pointer disabled:cursor-not-allowed"
+            title="Download executive 2-page AI CIBIL Audit & Dispute PDF with Logo & Key Improvement Points"
+          >
+            <Download className="w-4 h-4" />
+            <span>AI Analysis PDF (with Logo)</span>
           </button>
         </div>
       </div>

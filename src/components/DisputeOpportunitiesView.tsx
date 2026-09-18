@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileCheck2,
   AlertTriangle,
@@ -21,6 +22,8 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
   disputes,
   onDraftLetterForDispute,
 }) => {
+  const { t } = useTranslation();
+
   const getConfidenceBadge = (conf: string) => {
     switch (conf) {
       case 'HIGH':
@@ -40,16 +43,16 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
           <div className="flex items-center gap-2">
             <FileCheck2 className="w-5 h-5 text-emerald-600" />
             <h2 className="text-xl font-bold text-slate-900 font-heading">
-              Dispute Opportunity Detection
+              {t('disputes.title', 'Dispute Opportunities & Discrepancies')}
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Data discrepancies and inconsistencies flagged for correction with lenders and TransUnion CIBIL
+            {t('disputes.subtitle', 'Data discrepancies and inconsistencies flagged for correction with lenders and TransUnion CIBIL')}
           </p>
         </div>
 
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-700 bg-slate-100 px-3 py-1.5 rounded-xl">
-          <span>Total Disputable Items:</span>
+          <span>{t('nav.disputes', 'Disputes')}:</span>
           <span className="bg-white px-2 py-0.5 rounded-md shadow-2xs font-bold text-blue-600">
             {disputes.length}
           </span>
@@ -73,10 +76,10 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
             <CheckCircle2 className="w-6 h-6" />
           </div>
           <h3 className="text-base font-bold text-slate-900 font-heading">
-            No Obvious Data Discrepancies Detected
+            {t('disputes.noDisputes', 'No Obvious Data Discrepancies Detected')}
           </h3>
           <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
-            The trade lines, overdues, and reporting dates across your facilities appear mathematically consistent with no evident duplicate entries or zero-balance overdue conflicts.
+            {t('disputes.noDisputes', 'The trade lines, overdues, and reporting dates across your facilities appear mathematically consistent with no evident duplicate entries or zero-balance overdue conflicts.')}
           </p>
         </div>
       ) : (
@@ -96,10 +99,10 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${getConfidenceBadge(disp.confidence)}`}>
-                    {disp.confidence} Confidence
+                    {disp.confidence} {t('disputes.confidence', 'Confidence')}
                   </span>
                   <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-blue-50 text-blue-700 border border-blue-200">
-                    Route: {disp.recommendedRoute}
+                    {t('disputes.recommendedRoute', 'Route')}: {disp.recommendedRoute}
                   </span>
                 </div>
               </div>
@@ -108,18 +111,18 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
                 <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80">
                   <div>
-                    <span className="font-semibold text-slate-500 block text-[11px]">Evidence from Report:</span>
+                    <span className="font-semibold text-slate-500 block text-[11px]">{t('disputes.evidenceFromReport', 'Evidence from Report')}:</span>
                     <p className="text-slate-800 mt-0.5 font-medium">{disp.evidenceFromReport}</p>
                   </div>
                   <div>
-                    <span className="font-semibold text-slate-500 block text-[11px]">Why it Appears Inconsistent:</span>
+                    <span className="font-semibold text-slate-500 block text-[11px]">{t('disputes.whyInconsistent', 'Why it Appears Inconsistent')}:</span>
                     <p className="text-slate-600 mt-0.5">{disp.whyInconsistent}</p>
                   </div>
                 </div>
 
                 <div className="space-y-2 bg-slate-50 p-3.5 rounded-xl border border-slate-200/80 flex flex-col justify-between">
                   <div>
-                    <span className="font-semibold text-slate-500 block text-[11px]">Evidence You Should Provide:</span>
+                    <span className="font-semibold text-slate-500 block text-[11px]">{t('disputes.evidenceToProvide', 'Evidence You Should Provide')}:</span>
                     <p className="text-slate-800 mt-0.5 font-medium">{disp.evidenceToProvide}</p>
                   </div>
 
@@ -130,7 +133,7 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
                       className="px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
                     >
                       <FileSignature className="w-3.5 h-3.5" />
-                      <span>Draft Dispute Letter</span>
+                      <span>{t('disputes.draftDisputeLetter', 'Draft Dispute Letter')}</span>
                     </button>
                   </div>
                 </div>

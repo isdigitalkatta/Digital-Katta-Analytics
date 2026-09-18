@@ -163,26 +163,32 @@ export const PaymentHistoryHeatmap: React.FC<PaymentHistoryHeatmapProps> = ({
                 {acc.paymentHistory.length === 0 ? (
                   <span className="text-xs text-slate-400 italic">No historical monthly records reported</span>
                 ) : (
-                  acc.paymentHistory.map((rec, i) => (
-                    <button
-                      key={i}
-                      type="button"
-                      onClick={() =>
-                        setSelectedCell({
-                          accountName: acc.lender,
-                          accountNumberMasked: acc.accountNumberMasked,
-                          record: rec,
-                        })
-                      }
-                      title={`${acc.lender} - ${rec.monthYear}: DPD ${rec.dpd} (${rec.status})`}
-                      className={`h-8 min-w-[42px] px-1 rounded-md border text-[11px] flex flex-col items-center justify-center transition-transform hover:scale-105 cursor-pointer ${getCellColor(
-                        rec
-                      )}`}
-                    >
-                      <span className="leading-none text-[9px] opacity-80">{rec.monthYear.split('/')[0]}</span>
-                      <span className="leading-none text-[10px] font-bold mt-0.5">{rec.dpd}</span>
-                    </button>
-                  ))
+                  acc.paymentHistory.map((rec, i) => {
+                    const rawMonth = rec.monthYear || rec.month || (rec.monthName ? `${rec.monthName}/${rec.year ? String(rec.year).slice(-2) : ''}` : `M${i + 1}`);
+                    const shortMonth = rec.monthName || (rawMonth && rawMonth.includes('/') ? rawMonth.split('/')[0] : rawMonth) || `M${i + 1}`;
+                    const fullLabel = rec.month || rec.monthYear || (rec.monthName ? `${rec.monthName} ${rec.year || ''}` : `Month ${i + 1}`);
+
+                    return (
+                      <button
+                        key={i}
+                        type="button"
+                        onClick={() =>
+                          setSelectedCell({
+                            accountName: acc.lender,
+                            accountNumberMasked: acc.accountNumberMasked,
+                            record: rec,
+                          })
+                        }
+                        title={`${acc.lender} - ${fullLabel}: DPD ${rec.dpd} (${rec.status})`}
+                        className={`h-8 min-w-[42px] px-1 rounded-md border text-[11px] flex flex-col items-center justify-center transition-transform hover:scale-105 cursor-pointer ${getCellColor(
+                          rec
+                        )}`}
+                      >
+                        <span className="leading-none text-[9px] opacity-80">{shortMonth}</span>
+                        <span className="leading-none text-[10px] font-bold mt-0.5">{rec.dpd}</span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -195,7 +201,7 @@ export const PaymentHistoryHeatmap: React.FC<PaymentHistoryHeatmapProps> = ({
         <div className="p-4 rounded-xl bg-blue-50 border border-blue-200 text-xs text-blue-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-xs">
           <div>
             <span className="font-bold block text-sm">
-              Monthly Record Detail: {selectedCell.record.monthYear}
+              Monthly Record Detail: {selectedCell.record.month || selectedCell.record.monthYear || (selectedCell.record.monthName ? `${selectedCell.record.monthName} ${selectedCell.record.year || ''}` : 'Selected Month')}
             </span>
             <p className="text-xs text-blue-800 mt-0.5">
               Institution: <strong>{selectedCell.accountName}</strong> ({selectedCell.accountNumberMasked}) •

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   FileText,
   Copy,
@@ -9,6 +10,7 @@ import {
   Building2,
   AlertCircle,
   HelpCircle,
+  Languages,
 } from 'lucide-react';
 import { CreditAccount, NormalizedCreditReport } from '../types';
 import { useAuth } from '../context/AuthContext';
@@ -25,7 +27,15 @@ export const LetterGeneratorView: React.FC<LetterGeneratorViewProps> = ({
   prefillAccountId,
   prefillIssueType,
 }) => {
+  const { t, i18n } = useTranslation();
   const { authenticatedFetch } = useAuth();
+  const [letterLanguage, setLetterLanguage] = useState<string>(i18n.language || 'en');
+
+  // Keep synced if user switches globally
+  useEffect(() => {
+    setLetterLanguage(i18n.language || 'en');
+  }, [i18n.language]);
+
   const issueTypes = [
     { id: 'Account Closure Update', label: 'Account Closure Not Reflected (NOC Available)' },
     { id: 'Incorrect Overdue Balance', label: 'Spurious / Incorrect Overdue Amount' },
@@ -73,10 +83,15 @@ export const LetterGeneratorView: React.FC<LetterGeneratorViewProps> = ({
           customDetails,
         },
         report,
+        language: letterLanguage,
       };
 
       const res = await authenticatedFetch('/api/ai/letter', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-language': letterLanguage,
+        },
         body: JSON.stringify(payload),
       });
 
@@ -236,22 +251,44 @@ ${borrowerName}
           <div className="flex items-center gap-2">
             <FileText className="w-5 h-5 text-blue-600" />
             <h2 className="text-xl font-bold text-slate-900 font-heading">
-              Grievance & Correction Letter Generator
+              {t('letters.title', 'Grievance & Correction Letter Generator')}
             </h2>
           </div>
           <p className="text-xs text-slate-500 mt-1">
-            Generate formal, RBI-compliant grievance letters addressed to bank Principal Nodal Officers and CIBIL
+            {t('letters.subtitle', 'Generate formal, RBI-compliant grievance letters addressed to bank Principal Nodal Officers and CIBIL')}
           </p>
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Language selector for letter */}
+          <div className="flex items-center gap-1.5 bg-slate-50 border border-slate-200 px-2 py-1 rounded-lg text-xs">
+            <Languages className="w-3.5 h-3.5 text-slate-500" />
+            <select
+              value={letterLanguage}
+              onChange={e => setLetterLanguage(e.target.value)}
+              className="bg-transparent border-0 text-slate-800 font-medium text-xs focus:outline-none cursor-pointer"
+            >
+              <option value="en">English (Official)</option>
+              <option value="hi">हिन्दी (Hindi)</option>
+              <option value="mr">मराठी (Marathi)</option>
+              <option value="gu">ગુજરાતી (Gujarati)</option>
+              <option value="bn">বাংলা (Bengali)</option>
+              <option value="ta">தமிழ் (Tamil)</option>
+              <option value="te">తెలుగు (Telugu)</option>
+              <option value="kn">ಕನ್ನಡ (Kannada)</option>
+              <option value="ml">മലയാളം (Malayalam)</option>
+              <option value="pa">ਪੰਜਾਬੀ (Punjabi)</option>
+              <option value="or">ଓଡ଼ିଆ (Odia)</option>
+            </select>
+          </div>
+
           <button
             onClick={handleGenerate}
             disabled={isGenerating}
             className="px-3 py-1.5 rounded-lg text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 border border-blue-200 transition-colors flex items-center gap-1.5 cursor-pointer"
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>{isGenerating ? 'Regenerating...' : 'Regenerate'}</span>
+            <span>{isGenerating ? t('common.loading', 'Generating...') : t('letters.generate', 'Generate Letter')}</span>
           </button>
         </div>
       </div>
@@ -260,12 +297,12 @@ ${borrowerName}
         {/* Left Form (5 cols) */}
         <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs space-y-4 text-xs">
           <h3 className="text-sm font-bold text-slate-900 font-heading">
-            Grievance Particulars
+            {t('letters.templateType', 'Grievance Particulars')}
           </h3>
 
           {/* Issue Type */}
           <div>
-            <label className="font-semibold text-slate-700 block mb-1">Discrepancy Category:</label>
+            <label className="font-semibold text-slate-700 block mb-1">{t('letters.templateType', 'Discrepancy Category')}:</label>
             <select
               value={selectedIssue}
               onChange={e => setSelectedIssue(e.target.value)}
@@ -281,7 +318,7 @@ ${borrowerName}
 
           {/* Account selector */}
           <div>
-            <label className="font-semibold text-slate-700 block mb-1">Target Account / Trade Line:</label>
+            <label className="font-semibold text-slate-700 block mb-1">{t('letters.selectAccount', 'Target Account / Trade Line')}:</label>
             <select
               value={selectedAccount}
               onChange={e => setSelectedAccount(e.target.value)}
@@ -373,7 +410,7 @@ ${borrowerName}
                 title="Copy text"
               >
                 {copied ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                <span className="hidden sm:inline">{copied ? 'Copied' : 'Copy'}</span>
+                <span className="hidden sm:inline">{copied ? t('letters.copied', 'Copied') : t('letters.copy', 'Copy')}</span>
               </button>
 
               <button
@@ -382,7 +419,7 @@ ${borrowerName}
                 title="Download text file"
               >
                 <Download className="w-4 h-4" />
-                <span className="hidden sm:inline">Download</span>
+                <span className="hidden sm:inline">{t('letters.download', 'Download')}</span>
               </button>
 
               <button

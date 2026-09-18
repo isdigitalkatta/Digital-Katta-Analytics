@@ -1,0 +1,191 @@
+import { SupportedLanguage } from './types';
+
+export interface FinancialTerm {
+  en: string;
+  hi: string;
+  mr: string;
+  gu: string;
+  bn: string;
+  ta: string;
+  te: string;
+  kn: string;
+  ml: string;
+  pa: string;
+  or: string;
+  ur: string;
+  description: string;
+}
+
+export const FINANCIAL_GLOSSARY: Record<string, FinancialTerm> = {
+  creditScore: {
+    en: 'Credit Score / CIBIL Score',
+    hi: 'क्रेडिट स्कोर / सिबिल स्कोर',
+    mr: 'क्रेडिट स्कोअर / सिबिल स्कोअर',
+    gu: 'ક્રેડિટ સ્કોર / સિબિલ સ્કોર',
+    bn: 'ক্রেডিট স্কোর / সিবিল স্কোর',
+    ta: 'கிரெடிட் ஸ்கோர் / சிபில் ஸ்கோர்',
+    te: 'క్రెడిట్ స్కోరు / సిబిల్ స్కోరు',
+    kn: 'ಕ್ರೆಡಿಟ್ ಸ್ಕೋರ್ / ಸಿಬಿಲ್ ಸ್ಕೋರ್',
+    ml: 'ക്രെഡിറ്റ് സ്കോർ / സിബിൽ സ്കോർ',
+    pa: 'ਕ੍ਰੈਡਿਟ ਸਕੋਰ / ਸਿਬਿਲ ਸਕੋਰ',
+    or: 'କ୍ରେଡିଟ୍ ସ୍କୋର / ସିବିଲ୍ ସ୍କୋର',
+    ur: 'کریڈٹ اسکور / سیبل اسکور',
+    description: 'Numerical summary of creditworthiness ranging between 300 and 900.',
+  },
+  daysPastDue: {
+    en: 'Days Past Due (DPD)',
+    hi: 'देय दिनों की संख्या (DPD)',
+    mr: 'थकीत दिवस (DPD)',
+    gu: 'બાકી દિવસો (DPD)',
+    bn: 'বকেয়া দিন সংখ্যা (DPD)',
+    ta: 'நிலுவை நாட்கள் (DPD)',
+    te: 'గడువు దాటిన రోజులు (DPD)',
+    kn: 'ಬಾಕಿ ದಿನಗಳು (DPD)',
+    ml: 'കുടിശ്ശിക ദിവസങ്ങൾ (DPD)',
+    pa: 'ਬਕਾਇਆ ਦਿਨ (DPD)',
+    or: 'ବକେୟା ଦିନ (DPD)',
+    ur: 'واجب الادا دن (DPD)',
+    description: 'The number of days an installment or payment has remained unpaid past its scheduled due date.',
+  },
+  writtenOff: {
+    en: 'Written Off',
+    hi: 'अपलिखित / राइट-ऑफ (Written Off)',
+    mr: 'अपलेखित / राइट-ऑफ (Written Off)',
+    gu: 'માંડી વાળેલ / રાઇટ-ઓફ (Written Off)',
+    bn: 'অবলোপনকৃত (Written Off)',
+    ta: 'தள்ளுபடி செய்யப்பட்டது (Written Off)',
+    te: 'రద్దు చేయబడింది (Written Off)',
+    kn: 'ರದ್ದುಗೊಳಿಸಲಾಗಿದೆ (Written Off)',
+    ml: 'എഴുതിത്തള്ളി (Written Off)',
+    pa: 'ਰਾਈਟ-ਆਫ (Written Off)',
+    or: 'ରଦ୍ଦ କରାଯାଇଛି (Written Off)',
+    ur: 'رائٹ آف / ساقط شدہ (Written Off)',
+    description: 'Account deemed a non-recoverable loss by the lender after prolonged delinquency.',
+  },
+  settled: {
+    en: 'Settled',
+    hi: 'समझौता किया गया (Settled)',
+    mr: 'तडजोड केलेले (Settled)',
+    gu: 'સમાધાન કરેલ (Settled)',
+    bn: 'মীমাংসাকৃত (Settled)',
+    ta: 'தீர்க்கப்பட்டது (Settled)',
+    te: 'పరిష్కరించబడింది (Settled)',
+    kn: 'ಇತ್ಯರ್ಥಪಡಿಸಲಾಗಿದೆ (Settled)',
+    ml: 'തീർപ്പാക്കി (Settled)',
+    pa: 'ਸਮਝੌਤਾ ਹੋਇਆ (Settled)',
+    or: 'ସମାଧାନ କରାଯାଇଛି (Settled)',
+    ur: 'سیٹلڈ / معاہدہ شدہ (Settled)',
+    description: 'Lender accepted a partial payment (haircut) to close the account instead of full principal and interest.',
+  },
+  overdue: {
+    en: 'Overdue Amount',
+    hi: 'अतिदेय राशि (Overdue Amount)',
+    mr: 'थकीत रक्कम (Overdue Amount)',
+    gu: 'બાકી લેણી રકમ (Overdue Amount)',
+    bn: 'বকেয়া অঙ্ক (Overdue Amount)',
+    ta: 'நிலுவைத் தொகை (Overdue Amount)',
+    te: 'గడువు ముగిసిన బకాయి (Overdue Amount)',
+    kn: 'ಬಾಕಿ ಮೊತ್ತ (Overdue Amount)',
+    ml: 'കുടിശ്ശിക തുക (Overdue Amount)',
+    pa: 'ਬਕਾਇਆ ਰਕਮ (Overdue Amount)',
+    or: 'ବକେୟା ରାଶି (Overdue Amount)',
+    ur: 'واجب الادا رقم (Overdue Amount)',
+    description: 'The sum of missed payments and penalty fees currently unpaid.',
+  },
+  activeClosed: {
+    en: 'Active / Closed',
+    hi: 'सक्रिय / बंद (Active / Closed)',
+    mr: 'सक्रिय / बंद (Active / Closed)',
+    gu: 'સક્રિય / બંધ (Active / Closed)',
+    bn: 'সক্রিয় / বন্ধ (Active / Closed)',
+    ta: 'செயலில் / மூடப்பட்டது (Active / Closed)',
+    te: 'యాక్టివ్ / మూసివేయబడింది (Active / Closed)',
+    kn: 'ಸಕ್ರಿಯ / ಮುಚ್ಚಲಾಗಿದೆ (Active / Closed)',
+    ml: 'സജീവം / ക്ലോസ് ചെയ്തു (Active / Closed)',
+    pa: 'ਸਰਗਰਮ / ਬੰਦ (Active / Closed)',
+    or: 'ସକ୍ରିୟ / ବନ୍ଦ (Active / Closed)',
+    ur: 'ایکٹو / بند (Active / Closed)',
+    description: 'Operating state of the credit facility.',
+  },
+  creditUtilization: {
+    en: 'Credit Card Utilization',
+    hi: 'क्रेडिट कार्ड उपयोगिता (Utilization)',
+    mr: 'क्रेडिट कार्ड वापर प्रमाण (Utilization)',
+    gu: 'ક્રેડિટ કાર્ડ વપરાશ દર (Utilization)',
+    bn: 'ক্রেডিট কার্ড ব্যবহার হার (Utilization)',
+    ta: 'கிரெடிட் கார்டு பயன்பாட்டு விகிதம் (Utilization)',
+    te: 'క్రెడిట్ కార్డు వినియోగం (Utilization)',
+    kn: 'ಕ್ರೆಡಿಟ್ ಕಾರ್ಡ್ ಬಳಕೆಯ ಪ್ರಮಾಣ (Utilization)',
+    ml: 'ക്രെഡിറ്റ് കാർഡ് ഉപയോഗം (Utilization)',
+    pa: 'ਕ੍ਰੈਡਿਟ ਕਾਰਡ ਵਰਤੋਂ (Utilization)',
+    or: 'କ୍ରେଡିଟ୍ କାର୍ଡ ବ୍ୟବହାର (Utilization)',
+    ur: 'کریڈٹ کارڈ کا استعمال (Utilization)',
+    description: 'Percentage of approved revolving credit limit currently consumed by unpaid balance.',
+  },
+  hardEnquiry: {
+    en: 'Hard Credit Enquiry',
+    hi: 'हार्ड क्रेडिट पूछताछ (Hard Enquiry)',
+    mr: 'हार्ड क्रेडिट चौकशी (Hard Enquiry)',
+    gu: 'હાર્ડ ક્રેડિટ પૂછપરછ (Hard Enquiry)',
+    bn: 'হার্ড ক্রেডিট অনুসন্ধান (Hard Enquiry)',
+    ta: 'கடன் விசாரணை (Hard Enquiry)',
+    te: 'క్రెడిట్ ఎంక్వైరీ (Hard Enquiry)',
+    kn: 'ಕ್ರೆಡಿಟ್ ವಿಚಾರಣೆ (Hard Enquiry)',
+    ml: 'ക്രെഡിറ്റ് അന്വേഷണം (Hard Enquiry)',
+    pa: 'ਕ੍ਰੈਡਿਟ ਪੜਤਾਲ (Hard Enquiry)',
+    or: 'କ୍ରେଡିଟ୍ ଅନୁସନ୍ଧାନ (Hard Enquiry)',
+    ur: 'ہارڈ کریڈٹ انکوائری (Hard Enquiry)',
+    description: 'Credit check triggered by a bank or lender upon loan or card application.',
+  },
+  noc: {
+    en: 'No Objection Certificate (NOC)',
+    hi: 'अनापत्ति प्रमाण पत्र (NOC)',
+    mr: 'ना-हरकत प्रमाणपत्र (NOC)',
+    gu: 'ના વાંધા પ્રમાણપત્ર (NOC)',
+    bn: 'অনাপত্তি সনদপত্র (NOC)',
+    ta: 'தடையில்லாச் சான்றிதழ் (NOC)',
+    te: 'నో అబ్జెక్షన్ సర్టిఫికెట్ (NOC)',
+    kn: 'ನಿರಾಕ್ಷೇಪಣಾ ಪ್ರಮಾಣಪತ್ರ (NOC)',
+    ml: 'നിരാക്ഷേപ പത്രം (NOC)',
+    pa: 'ਕੋਈ ਇਤਰਾਜ਼ ਨਹੀਂ ਸਰਟੀਫਿਕੇਟ (NOC)',
+    or: 'ଅନାପତ୍ତି ପ୍ରମାଣପତ୍ର (NOC)',
+    ur: 'این او سی / عدم اعتراض سرٹیفکیٹ (NOC)',
+    description: 'Formal bank document confirming loan closure with zero outstanding liability.',
+  },
+  actionPlan: {
+    en: '30/60/90-Day Action Plan',
+    hi: '30/60/90-दिवसीय सुधार कार्ययोजना',
+    mr: '३०/६०/९०-दिवसीय सुधारणा कृती आराखडा',
+    gu: '30/60/90-દિવસીય સુધારણા કાર્ય યોજના',
+    bn: '৩০/৬০/৯০-দিনের সংশোধন কর্মপরিকল্পনা',
+    ta: '30/60/90-நாள் சீரமைப்பு செயல் திட்டம்',
+    te: '30/60/90-రోజుల రికవరీ ప్రణాళిక',
+    kn: '30/60/90-ದಿನಗಳ ಸುಧಾರಣಾ ಕ್ರಿಯಾ ಯೋಜನೆ',
+    ml: '30/60/90-ദിന പരിഹാര കർമ്മ പദ്ധതി',
+    pa: '30/60/90-ਦਿਨਾ ਸੁਧਾਰ ਕਾਰਜ ਯੋਜਨਾ',
+    or: '୩୦/୬୦/୯୦-ଦିନର ସଂଶୋଧନ କାର୍ଯ୍ୟ ଯୋଜନା',
+    ur: '30/60/90 روزہ اصلاحی ایکشن پلان',
+    description: 'Structured chronological roadmap to repair credit standing.',
+  },
+  dispute: {
+    en: 'Bureau Dispute',
+    hi: 'सिबिल विवाद / सुधार अनुरोध (Dispute)',
+    mr: 'सिबिल तक्रार / वाद निवारण (Dispute)',
+    gu: 'સિબિલ વિવાદ / સુધાર વિનંતી (Dispute)',
+    bn: 'সিবিল বিরোধ নিষ্পত্তি (Dispute)',
+    ta: 'சிபில் குறைதீர்ப்பு (Dispute)',
+    te: 'సిబిల్ వివాద పరిష్కారం (Dispute)',
+    kn: 'ಸಿಬಿಲ್ ವಿವಾದ ಪರಿಹಾರ (Dispute)',
+    ml: 'സിബിൽ തർക്ക പരിഹാരം (Dispute)',
+    pa: 'ਸਿਬਿਲ ਇਤਰਾਜ਼ (Dispute)',
+    or: 'ସିବିଲ୍ ବିବାଦ ସମାଧାନ (Dispute)',
+    ur: 'سیبل تنازعہ / درخواستی ازالہ (Dispute)',
+    description: 'Official rectification petition lodged with credit bureaus or lender nodal officers under RBI regulations.',
+  },
+};
+
+export function getLocalizedTerm(key: keyof typeof FINANCIAL_GLOSSARY, lang: SupportedLanguage): string {
+  const term = FINANCIAL_GLOSSARY[key];
+  if (!term) return key;
+  return (term as any)[lang] || term.en;
+}

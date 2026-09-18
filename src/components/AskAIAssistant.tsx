@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   Sparkles,
   Send,
@@ -34,12 +35,14 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
   onClose,
   isDrawer = true,
 }) => {
+  const { t, i18n } = useTranslation();
   const { authenticatedFetch } = useAuth();
+
   const quickQuestions = [
-    'Why is my CIBIL score low?',
-    'Which account is hurting my profile most?',
-    'What should I fix first?',
-    'Do I have any written-off accounts?',
+    t('chat.quick1', 'Why is my CIBIL score low?'),
+    t('chat.quick2', 'Which account is hurting my profile most?'),
+    t('chat.quick3', 'What should I fix first?'),
+    t('chat.quick4', 'Do I have any written-off accounts?'),
     'Which accounts contain potential errors?',
     'Why is my credit utilization high?',
     'What documents do I need for disputes?',
@@ -84,10 +87,15 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
     try {
       const res = await authenticatedFetch('/api/ai/chat', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-language': i18n.language || 'en',
+        },
         body: JSON.stringify({
           question: q.trim(),
           report,
           history: messages.slice(-4).map(m => ({ role: m.sender, content: m.text })),
+          language: i18n.language || 'en',
         }),
       });
 
@@ -129,10 +137,10 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
           </div>
           <div>
             <h3 className="text-sm font-bold text-slate-900 font-heading">
-              Ask About My Credit Report
+              {t('chat.title', 'Ask About My Credit Report')}
             </h3>
             <p className="text-[11px] text-slate-500">
-              Grounded exclusively in your uploaded data
+              {t('chat.subtitle', 'Grounded exclusively in your uploaded data')}
             </p>
           </div>
         </div>
@@ -188,7 +196,7 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
         {isLoading && (
           <div className="flex items-center gap-2 text-slate-400 text-xs pl-9">
             <Loader2 className="w-4 h-4 animate-spin text-blue-600" />
-            <span>Analyzing your credit report...</span>
+            <span>{t('chat.thinking', 'Analyzing your credit report...')}</span>
           </div>
         )}
         <div ref={messagesEndRef} />
@@ -222,7 +230,7 @@ export const AskAIAssistant: React.FC<AskAIAssistantProps> = ({
             type="text"
             value={inputQuestion}
             onChange={e => setInputQuestion(e.target.value)}
-            placeholder="Ask a question about your CIBIL accounts..."
+            placeholder={t('chat.placeholder', 'Ask a question about your CIBIL accounts...')}
             disabled={isLoading}
             className="flex-1 p-2.5 rounded-xl border border-slate-200 text-xs text-slate-900 focus:outline-none focus:border-blue-500 bg-slate-50 focus:bg-white"
           />

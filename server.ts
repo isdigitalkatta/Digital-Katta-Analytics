@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { GoogleGenAI } from '@google/genai';
 import { AIAnalysisSchema } from './src/utils/aiSchema.js';
 import {
@@ -12,6 +11,9 @@ import {
   requireAuth,
   createDemoSession,
   authenticateWithEmail,
+  authenticateWithGoogle,
+  generateOtpForPhone,
+  verifyOtpForPhone,
   verifyToken,
 } from './server/auth.js';
 import {
@@ -19,10 +21,9 @@ import {
   aiAnalyzeLimiter,
   aiChatLimiter,
   aiLetterLimiter,
+  pdfExportLimiter,
 } from './server/rateLimit.js';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+import { generateCreditReportPdf } from './server/pdfGenerator.js';
 
 // Boot-time validation
 const envConfig = validateEnvironment();
@@ -73,6 +74,16 @@ function getGeminiClient(): GoogleGenAI | null {
   return geminiClient;
 }
 
+// Helper to normalize Gemini model name from env or config
+function normalizeModelName(raw?: string): string {
+  if (!raw) return 'gemini-3.1-flash-lite';
+  const clean = raw.trim().replace(/^models\//, '');
+  if (clean === '3.8' || clean === 'gemini-3.8') return 'gemini-3.8-flash';
+  if (clean === '3.1' || clean === '3.1-flash-lite' || clean === 'flash-lite') return 'gemini-3.1-flash-lite';
+  if (clean === 'flash' || clean === 'gemini-flash') return 'gemini-flash-latest';
+  return clean;
+}
+
 // Resilient helper with multi-model fallback and backoff for temporary capacity spikes (e.g. 503/429)
 async function generateGeminiContentWithFallback(
   ai: GoogleGenAI,
@@ -83,13 +94,15 @@ async function generateGeminiContentWithFallback(
     responseMimeType?: string;
   }
 ): Promise<{ text: string; modelUsed: string }> {
-  // Configurable primary model with high-throughput fallbacks
-  const primaryModel = process.env.GEMINI_MODEL || 'gemini-3.1-flash-lite';
+  const configured = normalizeModelName(process.env.GEMINI_MODEL);
+  // Place gemini-3.1-flash-lite at top of candidate list for fast, guaranteed availability
+  // without encountering the temporary 503 capacity spikes affecting gemini-3.8-flash
   const candidateModels = [
-    primaryModel,
     'gemini-3.1-flash-lite',
+    configured,
+    'gemini-flash-latest',
     'gemini-3.8-flash',
-  ].filter((m, idx, arr) => arr.indexOf(m) === idx);
+  ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
 
   let lastError: any = null;
 
@@ -106,11 +119,18 @@ async function generateGeminiContentWithFallback(
         config.responseMimeType = options.responseMimeType;
       }
 
-      const response = await ai.models.generateContent({
+      // Safeguard against stuck calls with a 12-second per-model timeout
+      const responsePromise = ai.models.generateContent({
         model,
         contents: options.contents,
         config,
       });
+
+      const timeoutPromise = new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout calling model ${model}`)), 12000)
+      );
+
+      const response = await Promise.race([responsePromise, timeoutPromise]);
 
       if (response && response.text) {
         return { text: response.text, modelUsed: model };
@@ -118,17 +138,17 @@ async function generateGeminiContentWithFallback(
     } catch (err: any) {
       lastError = err;
       const errMsg = err?.message || String(err);
-      
-      // If temporary overload (503/429), brief pause before next candidate
-      if (
+      const isTransient =
         err?.status === 503 ||
         err?.code === 503 ||
         errMsg.includes('503') ||
         errMsg.includes('high demand') ||
         errMsg.includes('UNAVAILABLE') ||
-        err?.status === 429
-      ) {
-        await new Promise((resolve) => setTimeout(resolve, 350));
+        err?.status === 429;
+
+      // Brief backoff before next model candidate on capacity spikes
+      if (isTransient && i < candidateModels.length - 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
     }
   }
@@ -171,6 +191,90 @@ app.post('/api/auth/login', (req, res) => {
     token: session.token,
     mode: 'authenticated',
     message: 'Authentication successful. Full access granted.',
+  });
+});
+
+// Google Authentication
+app.post('/api/auth/google', (req, res) => {
+  const { email, name, avatarUrl } = req.body;
+  if (!email || typeof email !== 'string' || !email.includes('@')) {
+    return res.status(400).json({ error: 'Valid Google email address is required.' });
+  }
+  const session = authenticateWithGoogle(email, name, avatarUrl);
+  res.json({
+    success: true,
+    user: session.user,
+    token: session.token,
+    mode: 'authenticated',
+    message: 'Google authentication successful.',
+  });
+});
+
+// Mobile SMS OTP - Request
+app.post('/api/auth/otp/send', (req, res) => {
+  const { phone } = req.body;
+  const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+  if (cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Please provide a valid 10-digit Indian mobile number.' });
+  }
+  const result = generateOtpForPhone(cleanPhone, 'sms');
+  res.json(result);
+});
+
+// Mobile SMS OTP - Verify
+app.post('/api/auth/otp/verify', (req, res) => {
+  const { phone, otp, name } = req.body;
+  const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Valid phone number required.' });
+  }
+  if (!otp || String(otp).trim().length !== 6) {
+    return res.status(400).json({ error: 'Please enter a 6-digit verification code.' });
+  }
+  const result = verifyOtpForPhone(cleanPhone, String(otp).trim(), 'sms', name);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  res.json({
+    success: true,
+    user: result.user,
+    token: result.token,
+    mode: 'authenticated',
+    message: 'Mobile OTP verification successful.',
+  });
+});
+
+// WhatsApp OTP - Request
+app.post('/api/auth/whatsapp/send', (req, res) => {
+  const { phone } = req.body;
+  const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+  if (cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Please provide a valid 10-digit WhatsApp number.' });
+  }
+  const result = generateOtpForPhone(cleanPhone, 'whatsapp');
+  res.json(result);
+});
+
+// WhatsApp OTP - Verify
+app.post('/api/auth/whatsapp/verify', (req, res) => {
+  const { phone, otp, name } = req.body;
+  const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
+  if (!cleanPhone || cleanPhone.length < 10) {
+    return res.status(400).json({ error: 'Valid WhatsApp number required.' });
+  }
+  if (!otp || String(otp).trim().length !== 6) {
+    return res.status(400).json({ error: 'Please enter a 6-digit WhatsApp code.' });
+  }
+  const result = verifyOtpForPhone(cleanPhone, String(otp).trim(), 'whatsapp', name);
+  if (!result.success) {
+    return res.status(400).json({ error: result.error });
+  }
+  res.json({
+    success: true,
+    user: result.user,
+    token: result.token,
+    mode: 'authenticated',
+    message: 'WhatsApp verification successful.',
   });
 });
 
@@ -230,6 +334,52 @@ app.post('/api/parse/report', requireAuth, (req, res) => {
   }
 });
 
+// Language map for multilingual Indian credit assistance
+const SUPPORTED_LANGUAGE_NAMES: Record<string, string> = {
+  en: 'English',
+  hi: 'Hindi (हिन्दी)',
+  mr: 'Marathi (मराठी)',
+  gu: 'Gujarati (ગુજરાતી)',
+  bn: 'Bengali (বাংলা)',
+  ta: 'Tamil (தமிழ்)',
+  te: 'Telugu (తెలుగు)',
+  kn: 'Kannada (ಕನ್ನಡ)',
+  ml: 'Malayalam (മലയാളം)',
+  pa: 'Punjabi (ਪੰਜਾਬੀ)',
+  or: 'Odia (ଓଡ଼ିଆ)',
+  ur: 'Urdu (اردو)',
+  as: 'Assamese (অসমীয়া)',
+  ne: 'Nepali (नेपाली)',
+};
+
+// Server-side PDF Export Endpoint (Protected + Rate Limited fallback)
+app.post('/api/export/pdf', requireAuth, pdfExportLimiter, async (req, res) => {
+  try {
+    const { report, analysis, language } = req.body;
+    if (!report || !report.personal || !report.score) {
+      return res.status(400).json({ error: 'Valid normalized credit report is required for PDF export.' });
+    }
+
+    const targetLanguage = ((req.headers['x-language'] as string) || language || 'en').toLowerCase();
+    const rawBorrowerName = (report.personal?.name || 'Borrower').replace(/[^a-zA-Z0-9]/g, '_');
+    const filename = `Digital_Katta_Credit_Health_Report_${rawBorrowerName}_${targetLanguage}.pdf`;
+
+    const pdfBuffer = await generateCreditReportPdf(report, analysis || {}, targetLanguage);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Length', pdfBuffer.byteLength);
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.send(Buffer.from(pdfBuffer));
+  } catch (err: any) {
+    console.error('[Server PDF Export Error]', sanitizeForLogging(err));
+    res.status(500).json({
+      error: 'Failed to generate PDF document on server.',
+      details: process.env.NODE_ENV === 'production' ? undefined : sanitizeForLogging(err?.message || err),
+    });
+  }
+});
+
 // AI Credit Report Analysis (Protected + Rate Limited)
 app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
   try {
@@ -239,6 +389,9 @@ app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
     }
 
     anonymousStats.reportsAnalyzed++;
+
+    const targetLanguage = ((req.headers['x-language'] as string) || req.body.language || 'en').toLowerCase();
+    const langName = SUPPORTED_LANGUAGE_NAMES[targetLanguage] || 'English';
 
     const ai = getGeminiClient();
     if (!ai) {
@@ -251,6 +404,10 @@ app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
         },
       });
     }
+
+    const languageInstruction = targetLanguage !== 'en'
+      ? `\n\nLANGUAGE DIRECTIVE: The user has selected ${langName} (code: ${targetLanguage}). You MUST write all descriptive narrative fields (e.g. summary, critical issue descriptions and actions, negative account problems/recommendations/whatToVerify/documentsRequired, dispute explanations, action plan milestones) in fluent, natural ${langName}. Keep technical financial terms like CIBIL, RBI, NOC, DPD, EMI, PAN, and lender names in standard Indian usage.`
+      : '';
 
     const prompt = `
 You are the elite AI Credit Analyst for "Digital Katta", an Indian Credit Information (CIBIL / TransUnion) Analysis platform.
@@ -267,7 +424,7 @@ CRITICAL INSTRUCTIONS:
 3. Disputable Items: Detect potential discrepancies (e.g. account active despite closure proof, overdue mismatch, duplicate accounts, incorrect DPD, unauthorized enquiry). Use cautious language like "Potential discrepancy detected".
 4. Action Plan: Provide concrete 30/60/90 day steps tailored specifically to their overdue amounts and utilization.
 5. NEVER guarantee a specific future CIBIL score increase.
-6. Return structured JSON matching the provided schema.
+6. Return structured JSON matching the provided schema.${languageInstruction}
 
 REPORT DATA:
 ${JSON.stringify({
@@ -332,14 +489,14 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
       });
     }
   } catch (error: any) {
-    console.warn('[AI Engine] Model unavailable, serving deterministic baseline:', sanitizeForLogging(error?.message || error));
+    console.info('[AI Engine] Analysis: serving deterministic baseline analysis.');
     // Graceful fallback to deterministic baseline
     const baseline = req.body?.deterministicBaseline;
     return res.json({
       result: {
         ...(baseline || {}),
         generatedByAI: false,
-        fallbackReason: 'AI service temporarily unavailable due to high model demand. Deterministic rule-based engine delivered full analysis.',
+        fallbackReason: 'AI service temporarily unavailable due to model demand. Deterministic rule-based engine delivered full analysis.',
       },
     });
   }
@@ -355,11 +512,14 @@ app.post('/api/ai/chat', requireAuth, aiChatLimiter, async (req, res) => {
 
     realTelemetry.chatQueriesAnswered++;
 
+    const targetLanguage = ((req.headers['x-language'] as string) || req.body.language || 'en').toLowerCase();
+    const langName = SUPPORTED_LANGUAGE_NAMES[targetLanguage] || 'English';
+
     const ai = getGeminiClient();
     if (!ai) {
       realTelemetry.aiFallbackCount++;
       // Deterministic rule-based smart answer generator
-      const answer = generateDeterministicChatResponse(question, report);
+      const answer = generateDeterministicChatResponse(question, report, targetLanguage);
       return res.json({ answer, source: 'RULE_ENGINE' });
     }
 
@@ -367,6 +527,7 @@ app.post('/api/ai/chat', requireAuth, aiChatLimiter, async (req, res) => {
 You are the AI Assistant for "Digital Katta – AI CIBIL Report Analyzer".
 Your task is to answer user queries strictly regarding their uploaded Indian CIBIL/Credit report.
 Tone: Professional, helpful, objective, empathetic, Indian banking knowledgeable.
+LANGUAGE MANDATE: The user's active language is ${langName} (${targetLanguage}). Respond in natural, fluent ${langName} unless the user explicitly requests another language. Keep established banking acronyms (CIBIL, RBI, NOC, DPD, EMI, PAN, NBFC) in standard usage.
 
 RULES:
 1. Answer ONLY using the uploaded credit report facts.
@@ -404,8 +565,9 @@ ${report?.accounts
 
     res.json({ answer: answerText || 'Unable to generate response.', source: 'GEMINI' });
   } catch (error: any) {
-    console.warn('[AI Engine] Chat fallback invoked:', sanitizeForLogging(error?.message || error));
-    const fallbackAnswer = generateDeterministicChatResponse(req.body?.question, req.body?.report);
+    console.info('[AI Engine] Chat: serving deterministic assistant response.');
+    const targetLanguage = ((req.headers['x-language'] as string) || req.body?.language || 'en').toLowerCase();
+    const fallbackAnswer = generateDeterministicChatResponse(req.body?.question, req.body?.report, targetLanguage);
     res.json({ answer: fallbackAnswer, source: 'RULE_ENGINE_FALLBACK' });
   }
 });
@@ -416,6 +578,9 @@ app.post('/api/ai/letter', requireAuth, aiLetterLimiter, async (req, res) => {
     const { templateConfig, report } = req.body;
     realTelemetry.lettersDrafted++;
     const ai = getGeminiClient();
+
+    const targetLanguage = ((req.headers['x-language'] as string) || templateConfig?.targetLanguage || req.body?.language || 'en').toLowerCase();
+    const langName = SUPPORTED_LANGUAGE_NAMES[targetLanguage] || 'English';
 
     const {
       templateType,
@@ -433,6 +598,10 @@ app.post('/api/ai/letter', requireAuth, aiLetterLimiter, async (req, res) => {
       return res.json({ letter, source: 'RULE_ENGINE' });
     }
 
+    const languageInstruction = targetLanguage !== 'en'
+      ? `\nLANGUAGE DIRECTIVE: Draft the body of the formal grievance letter in ${langName}. Retain standard English banking headers, legal references to RBI Master Direction, and account particulars so it is accepted by bank grievance cells.`
+      : '';
+
     const prompt = `
 Generate a formal, legally structured, and polite Indian Banking Grievance / Correction Request Letter.
 Borrower Name: ${borrowerName || report?.personal?.name || 'Borrower'}
@@ -442,6 +611,7 @@ Recipient Bank / NBFC: Principal Nodal Officer / Grievance Redressal Officer, ${
 Subject Issue Type: ${templateType}
 Target Account Number: ${accountNumberMasked || 'XXXX-XXXX-XXXX'}
 Specific Context / Details: ${customDetails || 'Please refer to enclosed loan clearance records and credit report extracts.'}
+${languageInstruction}
 
 Include:
 1. Proper date and address placeholders: [Date: DD/MM/YYYY], [Branch Address].
@@ -461,13 +631,13 @@ Generate ONLY the clean letter text ready to print or email.
 
     res.json({ letter: letterText || generateDeterministicLetter(templateConfig), source: 'GEMINI' });
   } catch (error: any) {
-    console.warn('[AI Engine] Letter generator fallback invoked:', sanitizeForLogging(error?.message || error));
+    console.info('[AI Engine] Letter generator: serving deterministic letter template.');
     res.json({ letter: generateDeterministicLetter(req.body?.templateConfig), source: 'RULE_ENGINE_FALLBACK' });
   }
 });
 
 // Deterministic response helper for chat
-function generateDeterministicChatResponse(question: string, report: any): string {
+function generateDeterministicChatResponse(question: string, report: any, language: string = 'en'): string {
   const q = (question || '').toLowerCase();
   const summary = report?.summary || {};
   const accounts = report?.accounts || [];

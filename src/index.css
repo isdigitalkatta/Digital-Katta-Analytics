@@ -2,21 +2,27 @@
 
 @layer base {
   body {
-    background-color: #329691;
-    color: #0f172a;
-    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #FFF8F0;
+    color: #12233F;
+    font-family: 'Poppins', 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   }
   h1, h2, h3, .font-heading {
-    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+    font-family: 'Poppins', 'Plus Jakarta Sans', sans-serif;
+    color: #12233F;
+  }
+  .font-handwriting {
+    font-family: 'Caveat', 'Kalam', cursive;
   }
 }
 
 /* Custom Brand Color Variables */
 :root {
-  --brand-teal: #329691;
-  --brand-teal-dark: #247571;
-  --brand-teal-light: #44aba6;
-  --brand-teal-surface: #eaf6f5;
+  --brand-orange: #F56B2B;
+  --brand-orange-hover: #E05A1D;
+  --brand-navy: #12233F;
+  --brand-cream: #FFF8F0;
+  --brand-peach: #FFF2E8;
+  --brand-card: #FFFFFF;
 }
 
 @media print {
@@ -70,5 +76,18 @@
   .print-break-inside-avoid {
     break-inside: avoid !important;
     page-break-inside: avoid !important;
+  }
+
+  /* Ensure Recharts SVG charts render with explicit sizing, full width, and sharp vectors in print mode */
+  .recharts-responsive-container {
+    min-height: 280px !important;
+    width: 100% !important;
+    max-width: 100% !important;
+  }
+  .recharts-wrapper {
+    overflow: visible !important;
+  }
+  .recharts-surface {
+    overflow: visible !important;
   }
 }

@@ -9,16 +9,24 @@ import {
 } from './types';
 import { runDeterministicAnalysis } from './utils/hybridAnalysisEngine';
 import { demoStressedReport, demoGoodReport } from './data/demoReports';
-import { Navbar } from './components/Navbar';
-import { Sidebar, NavTab } from './components/Sidebar';
-import { LandingPage } from './components/LandingPage';
+import { DashboardShell, DashboardTab } from './components/DashboardShell';
+import { HomePage } from './components/pages/HomePage';
+import { AnalysisPage } from './components/pages/AnalysisPage';
+import { ActionPlanPage } from './components/pages/ActionPlanPage';
+import { FutureOutlookPage } from './components/pages/FutureOutlookPage';
+import { UploadReportPage } from './components/pages/UploadReportPage';
+import { ResourcesPage } from './components/pages/ResourcesPage';
+import { ProfilePage } from './components/pages/ProfilePage';
+import { LoginScreen } from './components/LoginScreen';
+import { downloadAiAnalysisReportPdf } from './utils/pdfExport';
+import { useIdleTimer } from './hooks/useIdleTimer';
+
+// Granular sub-views
 import { UploadModal } from './components/UploadModal';
-import { DashboardOverview } from './components/DashboardOverview';
 import { NegativeAccountsView } from './components/NegativeAccountsView';
 import { PaymentHistoryHeatmap } from './components/PaymentHistoryHeatmap';
 import { UtilizationAndMixView } from './components/UtilizationAndMixView';
 import { DisputeOpportunitiesView } from './components/DisputeOpportunitiesView';
-import { ActionPlanView } from './components/ActionPlanView';
 import { LetterGeneratorView } from './components/LetterGeneratorView';
 import { AccountsListView } from './components/AccountsListView';
 import { EnquiriesView } from './components/EnquiriesView';
@@ -30,20 +38,74 @@ import { ScoreGauge } from './components/ScoreGauge';
 import { AuthModal } from './components/AuthModal';
 import { LegalDisclaimer } from './components/LegalDisclaimer';
 import { useAuth } from './context/AuthContext';
-import { Menu, X } from 'lucide-react';
 
 export function App() {
-  const { isAuthModalOpen, openAuthModal, closeAuthModal, authenticatedFetch } = useAuth();
-  const [report, setReport] = useState<NormalizedCreditReport | null>(null);
-  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(null);
+  const { isAuthenticated, isAuthModalOpen, openAuthModal, closeAuthModal, authenticatedFetch, user } = useAuth();
+  
+  // Initialize with the standard stressed demo dataset (matches the 642 score in mockup)
+  const [report, setReport] = useState<NormalizedCreditReport | null>(demoStressedReport);
+  const [analysis, setAnalysis] = useState<AIAnalysisResult | null>(() => runDeterministicAnalysis(demoStressedReport));
   const [isAnalyzing, setIsAnalyzing] = useState<boolean>(false);
-  const [currentTab, setCurrentTab] = useState<NavTab>('dashboard');
+  const [currentTab, setCurrentTab] = useState<DashboardTab>('home');
+  // MANDATORY: Login screen is strictly enforced at the start of every session
+  const [showLoginView, setShowLoginView] = useState<boolean>(true);
+  const [isSessionUnlocked, setIsSessionUnlocked] = useState<boolean>(false);
+  const [sessionTimedOut, setSessionTimedOut] = useState<boolean>(false);
+
+  const handleSessionUnlock = () => {
+    try {
+      sessionStorage.setItem('digitalkatta_session_unlocked', 'true');
+    } catch {}
+    setIsSessionUnlocked(true);
+    setShowLoginView(false);
+    setSessionTimedOut(false);
+  };
+
+  // 5-Minute Inactivity Idle Timer:
+  // Monitors keyboard, mouse, touch, scroll and window visibility.
+  // When 5 minutes of inactivity elapse, automatically resets sessionStorage and locks the app.
+  useIdleTimer({
+    timeoutMs: 5 * 60 * 1000, // 5 minutes
+    enabled: isSessionUnlocked && !showLoginView,
+    onIdle: () => {
+      // Automatically reset session storage
+      try {
+        sessionStorage.removeItem('digitalkatta_session_unlocked');
+        sessionStorage.clear();
+      } catch (err) {
+        console.warn('Error clearing sessionStorage on idle:', err);
+      }
+      setIsSessionUnlocked(false);
+      setShowLoginView(true);
+      setSessionTimedOut(true);
+    },
+  });
+
+  // AI Report Analysis PDF Downloader
+  const handleDownloadPdf = async () => {
+    try {
+      await downloadAiAnalysisReportPdf(report, analysis);
+    } catch (err) {
+      console.error('PDF download error:', err);
+    }
+  };
+
+  // Listen for user logout to re-lock the session and present LoginScreen
+  useEffect(() => {
+    const handleLogoutEvent = () => {
+      setIsSessionUnlocked(false);
+      setShowLoginView(true);
+      setSessionTimedOut(false);
+    };
+
+    window.addEventListener('digitalkatta_logout', handleLogoutEvent);
+    return () => window.removeEventListener('digitalkatta_logout', handleLogoutEvent);
+  }, []);
 
   const [isUploadOpen, setIsUploadOpen] = useState<boolean>(false);
   const [isPrivacyOpen, setIsPrivacyOpen] = useState<boolean>(false);
   const [isAuthOpen, setIsAuthOpen] = useState<boolean>(false);
   const [isChatOpen, setIsChatOpen] = useState<boolean>(false);
-  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState<boolean>(false);
 
   // Prefill state for letter generator
   const [letterPrefillAccount, setLetterPrefillAccount] = useState<string | undefined>();
@@ -52,7 +114,7 @@ export function App() {
   // Process newly loaded report
   const handleReportLoaded = async (loadedReport: NormalizedCreditReport) => {
     setReport(loadedReport);
-    setCurrentTab('dashboard');
+    setCurrentTab('analysis');
 
     // Step 1: Immediate factual baseline from deterministic engine
     const baseline = runDeterministicAnalysis(loadedReport);
@@ -61,7 +123,6 @@ export function App() {
     // Step 2: Enrich with server-side AI analysis asynchronously
     setIsAnalyzing(true);
     try {
-      // Track analytics anonymously
       fetch('/api/stats/track', { method: 'POST' }).catch(() => {});
 
       const res = await authenticatedFetch('/api/ai/analyze', {
@@ -95,7 +156,7 @@ export function App() {
   const handleClearReport = () => {
     setReport(null);
     setAnalysis(null);
-    setCurrentTab('dashboard');
+    setCurrentTab('home');
   };
 
   // Navigation helpers
@@ -118,226 +179,232 @@ export function App() {
     setCurrentTab('letter');
   };
 
-  return (
-    <div className="min-h-screen bg-[#329691] flex flex-col font-sans text-slate-900 print:bg-white print:min-h-0">
-      {/* Top Navigation */}
-      <div className="print:hidden">
-        <Navbar
-          report={report}
-          onOpenUpload={() => setIsUploadOpen(true)}
-          onSelectDemo={handleSelectDemo}
-          onClearReport={handleClearReport}
-          onOpenPrivacy={() => setIsPrivacyOpen(true)}
-          onOpenAuth={openAuthModal}
-          onToggleChat={() => setIsChatOpen(prev => !prev)}
-          isChatOpen={isChatOpen}
-          isAnalyzing={isAnalyzing}
+  // MANDATORY: Login screen is shown at the start of every session or when idle
+  if (!isSessionUnlocked || showLoginView) {
+    return (
+      <div className="min-h-screen bg-[#FFF8F0]">
+        <LoginScreen
+          onSuccess={handleSessionUnlock}
+          onCancel={handleSessionUnlock}
+          sessionTimedOut={sessionTimedOut}
         />
       </div>
+    );
+  }
 
-      {/* Main Container */}
-      <div className="flex-1 flex overflow-hidden print:overflow-visible print:block">
-        {/* If no report is loaded, show Landing Page */}
-        {!report || !analysis ? (
-          <LandingPage
-            onOpenUpload={() => setIsUploadOpen(true)}
-            onSelectDemo={handleSelectDemo}
-            onOpenPrivacy={() => setIsPrivacyOpen(true)}
-          />
-        ) : (
-          <div className="flex-1 flex overflow-hidden print:overflow-visible print:block">
-            {/* Desktop Left Sidebar */}
-            <div className="hidden md:block print:hidden">
-              <Sidebar
-                currentTab={currentTab}
-                onSelectTab={tab => setCurrentTab(tab)}
-                negativeAccountsCount={analysis.negativeAccounts.length}
-                disputeCount={analysis.disputeOpportunities.length}
-                isDemo={report.personal.name.includes('Demo') || report.personal.name.includes('Arun') || report.personal.name.includes('Priya')}
-              />
+  return (
+    <DashboardShell
+      currentTab={currentTab}
+      onSelectTab={(tab) => setCurrentTab(tab)}
+      negativeAccountsCount={analysis?.negativeAccounts.length || 0}
+      disputeCount={analysis?.disputeOpportunities.length || 0}
+      onToggleChat={() => setIsChatOpen((prev) => !prev)}
+      isChatOpen={isChatOpen}
+      onDownloadPdf={handleDownloadPdf}
+    >
+      {/* ========================================================= */}
+      {/* PAGE A: HOME                                              */}
+      {/* ========================================================= */}
+      {currentTab === 'home' && (
+        <HomePage
+          report={report}
+          analysis={analysis}
+          userName={user?.name ? String(user.name).split(' ')[0] : 'Sagar'}
+          onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
+          onDownloadPdf={handleDownloadPdf}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* PAGE B: ANALYSIS (CIBIL Report Analysis)                  */}
+      {/* ========================================================= */}
+      {currentTab === 'analysis' && (
+        <AnalysisPage
+          report={report}
+          analysis={analysis}
+          onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* PAGE C: ACTION PLAN                                       */}
+      {/* ========================================================= */}
+      {currentTab === 'action-plan' && (
+        <ActionPlanPage
+          report={report}
+          analysis={analysis}
+          onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* FUTURE OUTLOOK & SCORE TRAJECTORY                         */}
+      {/* ========================================================= */}
+      {currentTab === 'future-outlook' && (
+        <FutureOutlookPage
+          report={report}
+          analysis={analysis}
+          onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* PAGE D: UPLOAD REPORT (Under My Reports)                   */}
+      {/* ========================================================= */}
+      {currentTab === 'my-reports' && (
+        <UploadReportPage
+          onReportLoaded={handleReportLoaded}
+          onSelectDemo={handleSelectDemo}
+          currentReport={report}
+        />
+      )}
+
+      {/* ========================================================= */}
+      {/* DISPUTE SUPPORT (Dispute Opportunities + Letters)         */}
+      {/* ========================================================= */}
+      {currentTab === 'disputes' && (
+        <div className="space-y-6 max-w-6xl mx-auto pb-10 text-left">
+          <div className="flex items-center justify-between pb-3 border-b border-slate-200">
+            <div>
+              <h1 className="text-2xl font-extrabold text-[#12233F] font-heading">
+                Dispute Opportunities &amp; Bureau Resolution
+              </h1>
+              <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
+                Statutory dispute claims under Section 21 of the CICRA Act 2005.
+              </p>
             </div>
-
-            {/* Mobile Sidebar Overlay */}
-            {isMobileSidebarOpen && (
-              <div className="fixed inset-0 z-50 md:hidden flex print:hidden">
-                <div
-                  className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs"
-                  onClick={() => setIsMobileSidebarOpen(false)}
-                ></div>
-                <div className="relative z-10 w-64 bg-slate-900 h-full overflow-y-auto">
-                  <div className="p-4 flex items-center justify-between border-b border-slate-800">
-                    <span className="text-sm font-bold text-white">Menu</span>
-                    <button
-                      onClick={() => setIsMobileSidebarOpen(false)}
-                      className="p-1 text-slate-400 hover:text-white"
-                    >
-                      <X className="w-5 h-5" />
-                    </button>
-                  </div>
-                  <Sidebar
-                    currentTab={currentTab}
-                    onSelectTab={tab => {
-                      setCurrentTab(tab);
-                      setIsMobileSidebarOpen(false);
-                    }}
-                    negativeAccountsCount={analysis.negativeAccounts.length}
-                    disputeCount={analysis.disputeOpportunities.length}
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Main Content Area */}
-            <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 bg-slate-50/95 print:p-0 print:bg-white print:overflow-visible">
-              {/* Mobile Menu Toggle button */}
-              <div className="md:hidden mb-4 flex items-center justify-between bg-white p-3 rounded-xl border border-slate-200 print:hidden">
-                <button
-                  onClick={() => setIsMobileSidebarOpen(true)}
-                  className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer"
-                >
-                  <Menu className="w-4 h-4 text-blue-600" />
-                  <span>Navigate Tabs</span>
-                </button>
-                <span className="text-xs font-semibold text-slate-500 uppercase">
-                  {currentTab}
-                </span>
-              </div>
-
-              {/* Views Based on Current Tab */}
-              {currentTab === 'dashboard' && (
-                <DashboardOverview
-                  report={report}
-                  analysis={analysis}
-                  onNavigateTab={tab => setCurrentTab(tab)}
-                  onSelectAccountForLetter={id => {
-                    setLetterPrefillAccount(id);
-                    setCurrentTab('letter');
-                  }}
-                />
-              )}
-
-              {currentTab === 'score' && (
-                <div className="space-y-6 max-w-2xl mx-auto pb-12">
-                  <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs text-center space-y-4">
-                    <h2 className="text-xl font-bold text-slate-900 font-heading">
-                      CIBIL TransUnion Credit Score
-                    </h2>
-                    <ScoreGauge
-                      score={report.score.score}
-                      category={report.score.category}
-                      riskLevel={report.score.riskLevel}
-                    />
-                    <div className="text-xs text-slate-600 leading-relaxed max-w-md mx-auto pt-2">
-                      In India, TransUnion CIBIL scores range from 300 to 900. Lenders consider scores above 750 as prime benchmark for low-interest home loans and premium credit cards.
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {currentTab === 'accounts' && (
-                <AccountsListView
-                  accounts={report.accounts}
-                  onDraftLetter={handleDraftLetterForAccount}
-                  onNavigateHistory={() => setCurrentTab('history')}
-                />
-              )}
-
-              {currentTab === 'negative' && (
-                <NegativeAccountsView
-                  negativeAccounts={analysis.negativeAccounts}
-                  allAccounts={report.accounts}
-                  onDraftLetter={handleDraftLetterForAccount}
-                  onNavigateHistory={() => setCurrentTab('history')}
-                />
-              )}
-
-              {currentTab === 'history' && (
-                <PaymentHistoryHeatmap
-                  accounts={report.accounts}
-                  paymentBehaviour={analysis.paymentBehaviour}
-                />
-              )}
-
-              {currentTab === 'enquiries' && (
-                <EnquiriesView
-                  enquiries={report.enquiries}
-                  enquiryAnalysis={analysis.enquiryAnalysis}
-                  onDraftDisputeLetter={handleDraftLetterForEnquiry}
-                />
-              )}
-
-              {currentTab === 'utilization' && (
-                <UtilizationAndMixView
-                  report={report}
-                  utilizationAnalysis={analysis.utilizationAnalysis}
-                />
-              )}
-
-              {currentTab === 'ai-analysis' && (
-                <div className="space-y-6 pb-12">
-                  <AskAIAssistant report={report} isOpen={true} isDrawer={false} />
-                </div>
-              )}
-
-              {currentTab === 'disputes' && (
-                <DisputeOpportunitiesView
-                  disputes={analysis.disputeOpportunities}
-                  onDraftLetterForDispute={handleDraftLetterForDispute}
-                />
-              )}
-
-              {currentTab === 'action-plan' && (
-                <ActionPlanView actionPlan={analysis.actionPlan30_60_90} />
-              )}
-
-              {currentTab === 'letter' && (
-                <LetterGeneratorView
-                  report={report}
-                  prefillAccountId={letterPrefillAccount}
-                  prefillIssueType={letterPrefillIssue}
-                />
-              )}
-
-              {currentTab === 'export' && (
-                <ExportReportView report={report} analysis={analysis} />
-              )}
-
-              {currentTab === 'admin' && <AdminDashboardView />}
-
-              {currentTab === 'settings' && (
-                <div className="max-w-2xl mx-auto space-y-6 pb-12">
-                  <div className="bg-white rounded-2xl border border-slate-200/80 p-6 shadow-xs space-y-4">
-                    <h2 className="text-lg font-bold text-slate-900 font-heading">
-                      Privacy & Data Retention Settings
-                    </h2>
-                    <p className="text-xs text-slate-600 leading-relaxed">
-                      Digital Katta runs with a strict zero-retention privacy guarantee. No financial records, PAN numbers, or account details are saved in persistent databases.
-                    </p>
-                    <div className="pt-2">
-                      <button
-                        onClick={handleClearReport}
-                        className="px-4 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
-                      >
-                        Delete Current Report Data Immediately
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </main>
-
-            {/* Slide-out AI Assistant Drawer */}
-            {isChatOpen && (
-              <AskAIAssistant
-                report={report}
-                isOpen={isChatOpen}
-                onClose={() => setIsChatOpen(false)}
-                isDrawer={true}
-              />
-            )}
+            <button
+              onClick={() => setCurrentTab('letter')}
+              className="px-4 py-2 rounded-xl bg-[#F56B2B] text-white font-bold text-xs shadow-xs hover:bg-[#E05A1D] cursor-pointer"
+            >
+              Draft Formal Notice
+            </button>
           </div>
-        )}
-      </div>
+
+          {analysis ? (
+            <DisputeOpportunitiesView
+              disputes={analysis.disputeOpportunities}
+              onDraftLetterForDispute={handleDraftLetterForDispute}
+            />
+          ) : (
+            <p className="text-sm text-slate-500">Please upload a report to inspect disputes.</p>
+          )}
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* RESOURCES PAGE                                            */}
+      {/* ========================================================= */}
+      {currentTab === 'resources' && <ResourcesPage />}
+
+      {/* ========================================================= */}
+      {/* PROFILE PAGE                                              */}
+      {/* ========================================================= */}
+      {currentTab === 'profile' && <ProfilePage />}
+
+      {/* ========================================================= */}
+      {/* PRESERVED GRANULAR SUB-TABS FOR 100% RETENTION            */}
+      {/* ========================================================= */}
+      {currentTab === 'negative' && analysis && report && (
+        <div className="max-w-6xl mx-auto pb-10 text-left">
+          <button
+            onClick={() => setCurrentTab('analysis')}
+            className="text-xs font-bold text-[#F56B2B] hover:underline mb-4 inline-block cursor-pointer"
+          >
+            ← Back to CIBIL Analysis
+          </button>
+          <NegativeAccountsView
+            negativeAccounts={analysis.negativeAccounts}
+            allAccounts={report.accounts}
+            onDraftLetter={handleDraftLetterForAccount}
+            onNavigateHistory={() => setCurrentTab('history')}
+          />
+        </div>
+      )}
+
+      {currentTab === 'history' && report && analysis && (
+        <div className="max-w-6xl mx-auto pb-10 text-left">
+          <button
+            onClick={() => setCurrentTab('analysis')}
+            className="text-xs font-bold text-[#F56B2B] hover:underline mb-4 inline-block cursor-pointer"
+          >
+            ← Back to CIBIL Analysis
+          </button>
+          <PaymentHistoryHeatmap
+            accounts={report.accounts}
+            paymentBehaviour={analysis.paymentBehaviour}
+          />
+        </div>
+      )}
+
+      {currentTab === 'utilization' && report && analysis && (
+        <div className="max-w-6xl mx-auto pb-10 text-left">
+          <button
+            onClick={() => setCurrentTab('analysis')}
+            className="text-xs font-bold text-[#F56B2B] hover:underline mb-4 inline-block cursor-pointer"
+          >
+            ← Back to CIBIL Analysis
+          </button>
+          <UtilizationAndMixView
+            report={report}
+            utilizationAnalysis={analysis.utilizationAnalysis}
+          />
+        </div>
+      )}
+
+      {currentTab === 'enquiries' && report && analysis && (
+        <div className="max-w-6xl mx-auto pb-10 text-left">
+          <button
+            onClick={() => setCurrentTab('analysis')}
+            className="text-xs font-bold text-[#F56B2B] hover:underline mb-4 inline-block cursor-pointer"
+          >
+            ← Back to CIBIL Analysis
+          </button>
+          <EnquiriesView
+            enquiries={report.enquiries}
+            enquiryAnalysis={analysis.enquiryAnalysis}
+            onDraftDisputeLetter={handleDraftLetterForEnquiry}
+          />
+        </div>
+      )}
+
+      {currentTab === 'letter' && report && (
+        <div className="max-w-5xl mx-auto pb-10 text-left">
+          <button
+            onClick={() => setCurrentTab('disputes')}
+            className="text-xs font-bold text-[#F56B2B] hover:underline mb-4 inline-block cursor-pointer"
+          >
+            ← Back to Dispute Support
+          </button>
+          <LetterGeneratorView
+            report={report}
+            prefillAccountId={letterPrefillAccount}
+            prefillIssueType={letterPrefillIssue}
+          />
+        </div>
+      )}
+
+      {currentTab === 'export' && report && analysis && (
+        <div className="max-w-5xl mx-auto pb-10 text-left">
+          <ExportReportView report={report} analysis={analysis} />
+        </div>
+      )}
+
+      {currentTab === 'admin' && (
+        <div className="max-w-5xl mx-auto pb-10 text-left">
+          <AdminDashboardView />
+        </div>
+      )}
+
+      {/* Slide-out AI Assistant Drawer */}
+      {isChatOpen && (
+        <AskAIAssistant
+          report={report}
+          isOpen={isChatOpen}
+          onClose={() => setIsChatOpen(false)}
+          isDrawer={true}
+        />
+      )}
 
       {/* Modals */}
       <UploadModal
@@ -361,11 +428,9 @@ export function App() {
           closeAuthModal();
         }}
       />
-
-      {/* Persistent Regulatory & DPDP Act 2023 Compliance Notice */}
-      <LegalDisclaimer variant="persistent-banner" className="print:hidden" />
-    </div>
+    </DashboardShell>
   );
 }
 
 export default App;
+

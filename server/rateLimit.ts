@@ -81,3 +81,22 @@ export const aiLetterLimiter = rateLimit({
     code: 'AI_LETTER_QUOTA_EXCEEDED',
   },
 });
+
+/**
+ * PDF Export Limiter
+ */
+export const pdfExportLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: (req: Request) => {
+    const user = (req as any).user;
+    if (user && !user.isDemo) return 40; // 40 exports per 15 min
+    return 15; // 15 exports for demo
+  },
+  keyGenerator,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    error: 'PDF export quota reached. Please wait a few minutes before requesting more PDF downloads.',
+    code: 'PDF_EXPORT_QUOTA_EXCEEDED',
+  },
+});

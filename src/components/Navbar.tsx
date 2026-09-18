@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   UploadCloud,
   FileQuestion,
@@ -12,6 +13,7 @@ import {
 import { NormalizedCreditReport } from '../types';
 import { CompanyLogo } from './CompanyLogo';
 import { useAuth } from '../context/AuthContext';
+import { LanguageSelector } from './LanguageSelector';
 
 interface NavbarProps {
   report: NormalizedCreditReport | null;
@@ -36,9 +38,10 @@ export const Navbar: React.FC<NavbarProps> = ({
   isChatOpen,
   isAnalyzing,
 }) => {
+  const { t } = useTranslation();
   const { user, isAuthenticated } = useAuth();
   return (
-    <header className="h-16 bg-white border-b border-[#287975]/30 px-4 md:px-6 flex items-center justify-between z-10 shrink-0 sticky top-0 shadow-xs">
+    <header className="h-16 bg-white border-b border-[#287975]/30 px-3 md:px-6 flex items-center justify-between z-10 shrink-0 sticky top-0 shadow-xs">
       {/* Left info with Company Logo */}
       <div className="flex items-center gap-3">
         {report ? (
@@ -68,9 +71,9 @@ export const Navbar: React.FC<NavbarProps> = ({
           <div className="flex items-center gap-3">
             <CompanyLogo size="md" showTagline={true} />
             <div className="hidden lg:flex items-center gap-2 pl-3 border-l border-slate-200 text-xs text-slate-500">
-              <span className="font-semibold text-teal-800">AI CIBIL Analyzer</span>
+              <span className="font-semibold text-teal-800">{t('common.appName')}</span>
               <span>•</span>
-              <span>Your Credit. Clearly Explained.</span>
+              <span>{t('common.tagline')}</span>
             </div>
           </div>
         )}
@@ -81,9 +84,12 @@ export const Navbar: React.FC<NavbarProps> = ({
         {isAnalyzing && (
           <div className="hidden sm:flex items-center gap-1.5 text-xs text-blue-600 bg-blue-50 px-2.5 py-1 rounded-full border border-blue-200">
             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-            <span>Analyzing report...</span>
+            <span>{t('common.analyzing')}</span>
           </div>
         )}
+
+        {/* Multilingual Selector */}
+        <LanguageSelector />
 
         {report && (
           <button
@@ -93,10 +99,10 @@ export const Navbar: React.FC<NavbarProps> = ({
                 ? 'bg-blue-600 text-white border-blue-600 shadow-xs'
                 : 'bg-white text-blue-600 border-blue-200 hover:bg-blue-50'
             }`}
-            title="Ask Questions About Your Report"
+            title={t('nav.askAi')}
           >
             <Sparkles className="w-3.5 h-3.5" />
-            <span>Ask AI</span>
+            <span>{t('nav.askAi')}</span>
           </button>
         )}
 
@@ -107,12 +113,12 @@ export const Navbar: React.FC<NavbarProps> = ({
             className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 transition-colors cursor-pointer"
           >
             <FileQuestion className="w-3.5 h-3.5 text-slate-500" />
-            <span className="hidden sm:inline">Load Sample</span>
+            <span className="hidden sm:inline">Sample</span>
             <span className="sm:hidden">Sample</span>
           </button>
           <div className="absolute right-0 top-full mt-1 hidden group-hover:block w-64 bg-white rounded-xl shadow-lg border border-slate-200 p-2 z-50">
             <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 px-2 py-1">
-              Sample Indian Credit Profiles
+              {t('upload.orTryDemo')}
             </div>
             <button
               onClick={() => onSelectDemo('stressed')}
@@ -120,16 +126,16 @@ export const Navbar: React.FC<NavbarProps> = ({
             >
               <div className="font-semibold text-rose-700">Arun Kumar (Score: 618)</div>
               <div className="text-[11px] text-slate-500">
-                Stressed profile • Write-off, 90+ DPD & Overdues
+                {t('upload.stressedDemoBtn')}
               </div>
             </button>
             <button
               onClick={() => onSelectDemo('good')}
               className="w-full text-left p-2 rounded-lg hover:bg-slate-50 transition-colors text-xs cursor-pointer mt-1"
             >
-              <div className="font-semibold text-emerald-700">Priya Sharma (Score: 742)</div>
+              <div className="font-semibold text-emerald-700">Priya Sharma (Score: 785)</div>
               <div className="text-[11px] text-slate-500">
-                Good profile • Active Home Loan & 39% Card Utilization
+                {t('upload.goodDemoBtn')}
               </div>
             </button>
           </div>
@@ -141,7 +147,8 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs cursor-pointer"
         >
           <UploadCloud className="w-3.5 h-3.5" />
-          <span>Upload Report</span>
+          <span className="hidden sm:inline">{t('landing.uploadCta')}</span>
+          <span className="sm:hidden">{t('common.submit')}</span>
         </button>
 
         {/* Clear Data */}
@@ -153,40 +160,45 @@ export const Navbar: React.FC<NavbarProps> = ({
               }
             }}
             className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-            title="Clear and Delete Report Data"
+            title={t('nav.clearReport')}
           >
             <Trash2 className="w-4 h-4" />
           </button>
         )}
 
-        {/* Account / Auth status */}
+        {/* Account / Login button */}
         <button
           onClick={onOpenAuth}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold transition-colors cursor-pointer border ${
+          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
             isAuthenticated
-              ? 'bg-emerald-50 text-emerald-800 border-emerald-200 hover:bg-emerald-100'
-              : 'bg-amber-50 text-amber-800 border-amber-200 hover:bg-amber-100'
+              ? 'bg-emerald-50 text-emerald-800 border-emerald-300 hover:bg-emerald-100 shadow-xs'
+              : 'bg-amber-100 hover:bg-amber-200 text-slate-900 border-amber-300 shadow-xs'
           }`}
-          title={isAuthenticated ? `Authenticated as ${user?.email}` : 'Anonymous Demo Mode – Click to Sign In'}
+          title={isAuthenticated ? `Logged in as ${user?.name || user?.email || user?.phone}` : 'Click to Login with OTP, Google, Email, or WhatsApp'}
         >
-          <span
-            className={`w-2 h-2 rounded-full ${
-              isAuthenticated ? 'bg-emerald-500' : 'bg-amber-500'
-            }`}
-          />
-          <span className="hidden md:inline">
-            {isAuthenticated ? user?.email?.split('@')[0] : 'Demo Session'}
-          </span>
-          <span className="md:hidden">
-            {isAuthenticated ? 'User' : 'Demo'}
-          </span>
+          {isAuthenticated ? (
+            <>
+              <span className="w-2 h-2 rounded-full bg-emerald-500 ring-2 ring-emerald-200" />
+              <span className="hidden sm:inline">
+                {(user?.name ? user.name.split(' ')[0] : '') || (user?.email ? user.email.split('@')[0] : '') || 'User'}
+              </span>
+              <span className="text-[10px] bg-emerald-200/70 text-emerald-900 px-1.5 py-0.2 rounded-md font-extrabold uppercase">
+                {user?.provider || 'Auth'}
+              </span>
+            </>
+          ) : (
+            <>
+              <User className="w-3.5 h-3.5 text-slate-700" />
+              <span>Login</span>
+            </>
+          )}
         </button>
 
         {/* Privacy modal */}
         <button
           onClick={onOpenPrivacy}
           className="p-1.5 text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors cursor-pointer"
-          title="Privacy & Data Protection Notice"
+          title={t('nav.privacy')}
         >
           <Lock className="w-4 h-4" />
         </button>

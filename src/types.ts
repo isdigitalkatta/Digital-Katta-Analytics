@@ -27,6 +27,7 @@ export interface PaymentMonth {
   year: number; // e.g. 2024
   dpd: number | string; // e.g. 0, 30, 60, 90, "000", "030", "STD", "SUB", "DBT", "LSS"
   status: PaymentDPDStatus;
+  monthYear?: string;
 }
 
 export interface CreditAccount {
@@ -66,6 +67,7 @@ export interface CreditEnquiry {
 export interface PersonalProfile {
   name: string;
   panMasked: string;
+  bureauName?: string;
   dateOfBirth?: string;
   gender?: string;
   mobileMasked?: string;
@@ -260,3 +262,21 @@ export type PaymentRecord = PaymentMonth;
 export type PaymentBehaviourAnalysis = AIAnalysisResult['paymentBehaviour'];
 export type UtilizationAnalysis = AIAnalysisResult['utilizationAnalysis'];
 export type EnquiryAnalysis = AIAnalysisResult['enquiryAnalysis'];
+
+export interface ScoreOutlookPoint {
+  period: string;
+  score?: number | null;
+  projectedScore?: number | null;
+  optimisticScore?: number | null;
+  conservativeScore?: number | null;
+  lowerBound?: number | null;
+  upperBound?: number | null;
+  targetScore?: number | null;
+  isProjection?: boolean;
+  milestone?: string;
+  impactPoints?: number;
+  actionsSummary?: string;
+  [key: string]: any;
+}
+
+export type OutlookScenarioType = 'all' | 'realistic' | 'optimistic' | 'conservative';

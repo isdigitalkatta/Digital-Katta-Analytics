@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ShieldAlert,
   CreditCard,
@@ -30,6 +31,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
   analysis,
   onNavigateTab,
 }) => {
+  const { t } = useTranslation();
   const { summary, score } = report;
 
   return (
@@ -39,7 +41,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div>
           <div className="flex items-center gap-2">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-2 py-0.5 rounded">
-              Analysis Completed
+              {analysis.generatedByAI ? t('dashboard.aiAnalysisBadge', 'AI Enriched') : t('dashboard.ruleEngineBadge', 'Rule Engine Verified')}
             </span>
             {analysis.generatedByAI && (
               <span className="text-xs font-semibold text-purple-700 bg-purple-50 px-2 py-0.5 rounded flex items-center gap-1">
@@ -48,10 +50,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             )}
           </div>
           <h2 className="text-xl font-bold text-slate-900 font-heading mt-1">
-            Credit Profile Diagnosis for {report.personal.name}
+            {report.personal.name ? `${report.personal.name} – ${t('common.appName', 'Digital Katta Analytics')}` : t('dashboard.scoreCardTitle', 'Credit Profile Diagnosis')}
           </h2>
           <p className="text-xs text-slate-500 mt-0.5">
-            Report Reference: {report.personal.reportNumber || 'N/A'} • Evaluated on {new Date().toLocaleDateString('en-GB')}
+            Ref: {report.personal.reportNumber || 'N/A'} • {new Date().toLocaleDateString('en-IN')}
           </p>
         </div>
 
@@ -60,14 +62,14 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             onClick={() => onNavigateTab('disputes')}
             className="flex-1 md:flex-none px-3.5 py-2 rounded-xl text-xs font-semibold text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <span>{analysis.disputeOpportunities.length} Potential Disputes</span>
+            <span>{analysis.disputeOpportunities.length} {t('nav.disputes', 'Potential Disputes')}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
           <button
             onClick={() => onNavigateTab('action-plan')}
             className="flex-1 md:flex-none px-4 py-2 rounded-xl text-xs font-bold text-white bg-blue-600 hover:bg-blue-700 transition-colors shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <span>30/60/90 Day Plan</span>
+            <span>{t('nav.actionPlan', '30/60/90 Day Plan')}</span>
             <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
@@ -79,7 +81,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="lg:col-span-4 bg-white rounded-2xl border border-slate-200/80 p-5 shadow-xs flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <h3 className="text-sm font-bold text-slate-900 font-heading">
-              CIBIL TransUnion Score
+              {t('dashboard.scoreCardTitle', 'CIBIL TransUnion Score')}
             </h3>
             <span className="text-[11px] font-medium text-slate-400">Scale: 300–900</span>
           </div>
@@ -91,8 +93,8 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           />
 
           <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-            <span className="text-slate-500">Overall Credit Health:</span>
-            <span className="font-bold text-slate-800">{analysis.creditHealth.healthScore100} / 100 Index</span>
+            <span className="text-slate-500">{t('dashboard.healthIndex', 'Overall Credit Health')}:</span>
+            <span className="font-bold text-slate-800">{analysis.creditHealth.healthScore100} / 100</span>
           </div>
         </div>
 
@@ -104,7 +106,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:border-blue-300 transition-colors cursor-pointer flex flex-col justify-between"
           >
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">Total Accounts</span>
+              <span className="text-xs font-semibold text-slate-600">{t('dashboard.totalAccounts', 'Total Accounts')}</span>
               <CreditCard className="w-4 h-4 text-blue-600" />
             </div>
             <div className="my-2">
@@ -112,11 +114,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {summary.totalAccounts}
               </div>
               <p className="text-[11px] text-slate-500">
-                {summary.activeAccounts} Active • {summary.closedAccounts} Closed
+                {summary.activeAccounts} {t('dashboard.activeAccounts', 'Active')} • {summary.closedAccounts} {t('dashboard.closedAccounts', 'Closed')}
               </p>
             </div>
             <div className="text-[11px] text-blue-600 font-medium flex items-center gap-1">
-              View all trade lines <ArrowRight className="w-3 h-3" />
+              {t('common.view', 'View all trade lines')} <ArrowRight className="w-3 h-3" />
             </div>
           </div>
 
@@ -130,7 +132,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             }`}
           >
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">Negative Accounts</span>
+              <span className="text-xs font-semibold text-slate-600">{t('nav.negativeAccounts', 'Negative Accounts')}</span>
               <ShieldAlert className={`w-4 h-4 ${summary.negativeAccounts > 0 ? 'text-rose-600' : 'text-slate-400'}`} />
             </div>
             <div className="my-2">
@@ -138,11 +140,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {summary.negativeAccounts}
               </div>
               <p className="text-[11px] text-slate-500">
-                {summary.negativeAccounts > 0 ? 'Action Required' : 'Clean portfolio'}
+                {summary.negativeAccounts > 0 ? t('common.severity.critical', 'Action Required') : t('negative.noNegativeAccounts', 'Clean portfolio')}
               </p>
             </div>
             <div className="text-[11px] text-rose-600 font-medium flex items-center gap-1">
-              Inspect critical issues <ArrowRight className="w-3 h-3" />
+              {t('common.view', 'Inspect critical issues')} <ArrowRight className="w-3 h-3" />
             </div>
           </div>
 
@@ -156,7 +158,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             }`}
           >
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">Total Overdue</span>
+              <span className="text-xs font-semibold text-slate-600">{t('dashboard.overdueAmount', 'Total Overdue')}</span>
               <AlertCircle className={`w-4 h-4 ${summary.totalOverdue > 0 ? 'text-rose-600' : 'text-emerald-500'}`} />
             </div>
             <div className="my-2">
@@ -164,11 +166,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {formatIndianCurrency(summary.totalOverdue)}
               </div>
               <p className="text-[11px] text-slate-500">
-                {summary.totalOverdue > 0 ? 'Compounds monthly penalty' : 'Zero overdue recorded'}
+                {summary.totalOverdue > 0 ? t('dashboard.immediateAction', 'Clear immediately') : '₹0'}
               </p>
             </div>
             <div className="text-[11px] text-slate-500 font-medium">
-              Immediate clearance recommended
+              {t('dashboard.impact', 'Impacts CIBIL score')}
             </div>
           </div>
 
@@ -178,7 +180,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:border-slate-300 transition-colors cursor-pointer flex flex-col justify-between"
           >
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">Total Outstanding</span>
+              <span className="text-xs font-semibold text-slate-600">{t('negative.balance', 'Total Outstanding')}</span>
               <Layers className="w-4 h-4 text-slate-600" />
             </div>
             <div className="my-2">
@@ -186,11 +188,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {formatIndianCurrency(summary.totalOutstanding)}
               </div>
               <p className="text-[11px] text-slate-500">
-                Sanctioned: {formatIndianCurrency(summary.totalSanctioned)}
+                Limit: {formatIndianCurrency(summary.totalSanctioned)}
               </p>
             </div>
             <div className="text-[11px] text-slate-400 font-medium">
-              Across loans & credit cards
+              {t('nav.utilizationMix', 'Across loans & credit cards')}
             </div>
           </div>
 
@@ -204,7 +206,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             }`}
           >
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">Card Utilization</span>
+              <span className="text-xs font-semibold text-slate-600">{t('dashboard.utilization', 'Card Utilization')}</span>
               <TrendingDown className={`w-4 h-4 ${summary.creditCardUtilizationPct > 50 ? 'text-amber-600' : 'text-emerald-500'}`} />
             </div>
             <div className="my-2">
@@ -225,7 +227,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
               </div>
             </div>
             <div className="text-[11px] text-slate-500">
-              Target: Under 30% ({formatIndianCurrency(summary.totalCreditCardLimit * 0.3)})
+              Target: &lt; 30% ({formatIndianCurrency(summary.totalCreditCardLimit * 0.3)})
             </div>
           </div>
 
@@ -235,7 +237,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             className="bg-white rounded-2xl border border-slate-200/80 p-4 shadow-xs hover:border-slate-300 transition-colors cursor-pointer flex flex-col justify-between"
           >
             <div className="flex items-center justify-between text-slate-400">
-              <span className="text-xs font-semibold text-slate-600">Recent Enquiries</span>
+              <span className="text-xs font-semibold text-slate-600">{t('dashboard.recentEnquiries', 'Recent Enquiries')}</span>
               <History className="w-4 h-4 text-blue-500" />
             </div>
             <div className="my-2">
@@ -243,11 +245,11 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 {summary.enquiriesLast90Days}
               </div>
               <p className="text-[11px] text-slate-500">
-                In last 90 days • Total: {summary.enquiriesCount}
+                Last 90 days • Total: {summary.enquiriesCount}
               </p>
             </div>
             <div className="text-[11px] text-blue-600 font-medium">
-              View inquiry institutions
+              {t('common.view', 'View')} {t('nav.enquiries', 'Enquiries')}
             </div>
           </div>
         </div>
@@ -258,7 +260,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
         <div className="bg-rose-50 border border-rose-200 rounded-2xl p-5 space-y-3">
           <div className="flex items-center gap-2 text-rose-800 font-bold text-sm">
             <ShieldAlert className="w-5 h-5 text-rose-600" />
-            <span>Critical Flags Requiring Attention ({analysis.criticalIssues.length})</span>
+            <span>{t('dashboard.criticalIssuesTitle', 'Critical Issues Requiring Attention')} ({analysis.criticalIssues.length})</span>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -275,7 +277,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
                 </div>
                 <p className="text-slate-600">{issue.description}</p>
                 <div className="pt-1 text-[11px] text-rose-700 font-medium">
-                  <strong>Action:</strong> {issue.actionImmediate}
+                  <strong>{t('dashboard.immediateAction', 'Action')}:</strong> {issue.actionImmediate}
                 </div>
               </div>
             ))}
@@ -290,10 +292,10 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="text-base font-bold text-slate-900 font-heading">
-                What Is Hurting Your Score?
+                {t('dashboard.criticalIssuesSubtitle', 'What Is Hurting Your Score?')}
               </h3>
               <p className="text-xs text-slate-500">
-                Ranked impact factors derived from your CIBIL trade lines
+                {t('landing.feature1Desc', 'Ranked impact factors derived from your CIBIL trade lines')}
               </p>
             </div>
             <span className="text-xs font-semibold bg-slate-100 text-slate-700 px-2.5 py-1 rounded-full">

@@ -1,4 +1,5 @@
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 import {
   ShieldAlert,
   BrainCircuit,
@@ -11,6 +12,7 @@ import {
   ShieldCheck,
   PlayCircle,
   Sparkles,
+  LogIn,
 } from 'lucide-react';
 import { CompanyLogo } from './CompanyLogo';
 
@@ -18,48 +20,52 @@ interface LandingPageProps {
   onOpenUpload: () => void;
   onSelectDemo: (demoId: 'stressed' | 'good') => void;
   onOpenPrivacy: () => void;
+  onOpenLogin?: () => void;
 }
 
 export const LandingPage: React.FC<LandingPageProps> = ({
   onOpenUpload,
   onSelectDemo,
   onOpenPrivacy,
+  onOpenLogin,
 }) => {
+  const { t } = useTranslation();
+
   const features = [
     {
       icon: BrainCircuit,
-      title: 'AI Credit Diagnosis',
-      desc: 'Sophisticated diagnosis of payment delays, DPD trends, and high revolving card utilization.',
+      title: t('landing.feature1Title'),
+      desc: t('landing.feature1Desc'),
       color: 'from-teal-600 to-emerald-700',
     },
     {
       icon: ShieldAlert,
-      title: 'Negative Account Detection',
-      desc: 'Automatic identification of Written-off, Settled, Delinquent, and Suit-filed accounts with severity flags.',
+      title: t('landing.feature2Title'),
+      desc: t('landing.feature2Desc'),
       color: 'from-rose-500 to-red-600',
     },
     {
       icon: History,
-      title: 'Payment History Analysis',
+      title: t('nav.paymentHistory'),
       desc: 'Interactive visual heatmap of 30+, 60+, and 90+ DPD delays mapped month-by-month across your accounts.',
       color: 'from-amber-500 to-orange-600',
     },
     {
       icon: FileCheck2,
-      title: 'Dispute Opportunity Detection',
-      desc: 'Uncover potential inaccuracies such as active status on closed loans, wrong overdues, or duplicate accounts.',
+      title: t('nav.disputes'),
+      desc: t('disputes.subtitle'),
       color: 'from-emerald-600 to-teal-700',
     },
     {
       icon: CalendarDays,
-      title: 'Personalized Action Plan',
-      desc: 'A prioritized 30 / 60 / 90-day roadmap targeting fast score stabilization and debt resolution.',
+      title: t('landing.feature3Title'),
+      desc: t('landing.feature3Desc'),
       color: 'from-purple-600 to-indigo-700',
     },
     {
       icon: FileText,
-      title: 'AI Letter Generator',
-      desc: 'Draft formal, RBI-compliant grievance letters to banks and NBFCs with accurate circular citations.',
+      title: t('landing.feature4Title'),
+      desc: t('landing.feature4Desc'),
       color: 'from-cyan-600 to-blue-700',
     },
   ];
@@ -81,18 +87,18 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             </div>
             <div className="mt-3 flex items-center gap-2 px-3 py-1 rounded-full bg-white/15 backdrop-blur-xs border border-white/30 text-white text-xs font-semibold">
               <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
-              <span>Official CIBIL & Credit Report Intelligence Portal</span>
+              <span>{t('landing.badge')}</span>
             </div>
           </div>
 
           {/* Headline */}
           <h1 className="text-3xl sm:text-5xl font-extrabold text-white tracking-tight font-heading leading-tight mb-4 drop-shadow-xs">
-            Understand Your CIBIL Report With AI
+            {t('landing.heroTitle')} <span className="text-amber-300">{t('landing.heroTitleHighlight')}</span>
           </h1>
 
           {/* Subheadline */}
           <p className="text-base sm:text-lg text-teal-50 max-w-2xl mx-auto leading-relaxed mb-8">
-            Upload your credit report and instantly identify negative accounts, payment issues, utilization problems, potential discrepancies, and step-by-step actions to build a 750+ score.
+            {t('landing.heroSubtitle')}
           </p>
 
           {/* Action CTAs */}
@@ -102,15 +108,25 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2.5 px-7 py-3.5 rounded-xl bg-white hover:bg-teal-50 text-[#1f6360] font-extrabold text-sm shadow-xl shadow-teal-950/20 transition-all cursor-pointer transform active:scale-95"
             >
               <UploadCloud className="w-5 h-5 text-[#329691]" />
-              <span>Analyze My Credit Report</span>
+              <span>{t('landing.uploadCta')}</span>
             </button>
+
+            {onOpenLogin && (
+              <button
+                onClick={onOpenLogin}
+                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-amber-400 hover:bg-amber-300 text-slate-900 font-black text-sm shadow-lg shadow-amber-500/20 transition-all cursor-pointer"
+              >
+                <LogIn className="w-4 h-4 text-slate-900" />
+                <span>User Login (OTP, Google, WhatsApp)</span>
+              </button>
+            )}
 
             <button
               onClick={() => onSelectDemo('stressed')}
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-teal-950/30 hover:bg-teal-950/50 text-white font-bold text-sm border border-white/20 transition-all cursor-pointer"
             >
               <PlayCircle className="w-4 h-4 text-amber-300" />
-              <span>Try Stressed Demo</span>
+              <span>{t('landing.demoStressedCta')}</span>
             </button>
 
             <button
@@ -118,23 +134,21 @@ export const LandingPage: React.FC<LandingPageProps> = ({
               className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-xl bg-teal-950/30 hover:bg-teal-950/50 text-white font-bold text-sm border border-white/20 transition-all cursor-pointer"
             >
               <CheckCircle2 className="w-4 h-4 text-emerald-300" />
-              <span>Try Good Score Demo</span>
+              <span>{t('landing.demoGoodCta')}</span>
             </button>
           </div>
 
           {/* Supported formats */}
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3 text-xs font-medium text-teal-100">
-            <span>Compatible with:</span>
-            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">.PDF</span>
-            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">.HTML</span>
-            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">.JSON</span>
+            <span>{t('upload.subtitle')}</span>
+            <span className="bg-white/20 px-2.5 py-0.5 rounded-md text-white font-mono font-bold">PDF</span>
             <span>•</span>
             <button
               onClick={onOpenPrivacy}
               className="text-white underline hover:text-teal-200 flex items-center gap-1 cursor-pointer font-semibold"
             >
               <ShieldCheck className="w-4 h-4 text-emerald-300" />
-              <span>100% Privacy Protected (Client-Side Parsing)</span>
+              <span>{t('landing.privacyBadge')}</span>
             </button>
           </div>
         </div>
@@ -144,10 +158,10 @@ export const LandingPage: React.FC<LandingPageProps> = ({
       <section className="max-w-6xl mx-auto px-4 sm:px-6 py-12">
         <div className="text-center mb-10">
           <h2 className="text-2xl sm:text-3xl font-bold text-white font-heading">
-            Comprehensive Credit Diagnosis
+            {t('common.tagline')}
           </h2>
           <p className="text-sm text-teal-100 mt-1 max-w-xl mx-auto">
-            Transform confusing 40-page financial bureau documents into actionable, transparent intelligence.
+            {t('dashboard.criticalIssuesSubtitle')}
           </p>
         </div>
 
@@ -180,13 +194,13 @@ export const LandingPage: React.FC<LandingPageProps> = ({
           <div className="space-y-2 text-center md:text-left">
             <div className="inline-flex items-center gap-1.5 text-xs font-bold text-teal-700 bg-teal-50 px-2.5 py-1 rounded-full border border-teal-200">
               <ShieldCheck className="w-4 h-4 text-teal-600" />
-              <span>Zero-Data Retention Policy</span>
+              <span>{t('landing.privacyBadge')}</span>
             </div>
             <h4 className="text-lg font-bold text-slate-900 font-heading">
-              Your sensitive financial records are completely confidential.
+              {t('privacy.p1')}
             </h4>
             <p className="text-xs text-slate-600 max-w-xl leading-relaxed">
-              PAN numbers and account identifiers are masked automatically. Uploaded reports are processed in temporary memory and can be permanently wiped with a single click.
+              {t('landing.privacyText')}
             </p>
           </div>
 
@@ -194,7 +208,7 @@ export const LandingPage: React.FC<LandingPageProps> = ({
             onClick={onOpenUpload}
             className="shrink-0 px-6 py-3 rounded-xl bg-[#329691] hover:bg-[#25736f] text-white text-xs font-bold shadow-md shadow-teal-900/20 transition-all cursor-pointer"
           >
-            Upload Report Now
+            {t('landing.uploadCta')}
           </button>
         </div>
       </section>
