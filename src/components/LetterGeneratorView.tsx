@@ -163,9 +163,18 @@ ${borrowerName}
     handleGenerate();
   }, [selectedAccount, selectedIssue]);
 
+  const recordDisputeMilestone = () => {
+    try {
+      localStorage.setItem('cibil_first_dispute_filed', 'true');
+      const count = parseInt(localStorage.getItem('cibil_disputes_filed_count') || '0', 10);
+      localStorage.setItem('cibil_disputes_filed_count', (count + 1).toString());
+    } catch {}
+  };
+
   const copyToClipboard = () => {
     navigator.clipboard.writeText(generatedLetter);
     setCopied(true);
+    recordDisputeMilestone();
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -177,6 +186,7 @@ ${borrowerName}
     link.download = `Grievance_Letter_${currentAccount?.lender || 'Lender'}_${borrowerName.replace(/\s+/g, '_')}.txt`;
     link.click();
     URL.revokeObjectURL(url);
+    recordDisputeMilestone();
   };
 
   const printLetter = () => {

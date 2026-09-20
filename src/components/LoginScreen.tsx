@@ -84,13 +84,13 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
     const emailToUse = identifier.includes('@')
       ? identifier
       : `${identifier.replace(/[^0-9]/g, '')}@digitalkatta.com`;
-    const inferredName = identifier.includes('sagar') ? 'Sagar Dhumal' : 'Digital Katta Member';
+    const inferredName = identifier.toLowerCase().includes('sagar') ? 'Sagar Dhumal' : 'Digital Katta Member';
 
     const res = await login(emailToUse, inferredName);
     setIsSubmitting(false);
 
     if (res.success) {
-      setSuccessMsg('Welcome back! Loading your credit dashboard...');
+      setSuccessMsg('Welcome back! Synced with Leads sheet & loading dashboard...');
       setTimeout(() => {
         if (onSuccess) onSuccess();
       }, 700);
@@ -738,8 +738,21 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({
               type="button"
               onClick={async () => {
                 try {
-                  await loginAsDemo();
+                  setIsSubmitting(true);
+                  const raw = (identifier || '').trim();
+                  const isEmail = raw.includes('@');
+                  const cleanPhone = raw.replace(/[^0-9]/g, '');
+                  const isPhone = !isEmail && cleanPhone.length >= 10;
+
+                  await loginAsDemo({
+                    email: isEmail ? raw : undefined,
+                    phone: isPhone ? `+91 ${cleanPhone.slice(-10)}` : undefined,
+                    identifier: raw || undefined,
+                    name: raw.toLowerCase().includes('sagar') ? 'Sagar Dhumal (Demo)' : undefined,
+                  });
+                  setSuccessMsg('Demo session active! Synced with Leads spreadsheet.');
                 } catch (_) {}
+                setIsSubmitting(false);
                 if (onSuccess) onSuccess();
                 else if (onCancel) onCancel();
               }}

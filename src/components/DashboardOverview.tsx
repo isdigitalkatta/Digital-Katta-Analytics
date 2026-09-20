@@ -18,6 +18,7 @@ import { ScoreGauge } from './ScoreGauge';
 import { formatIndianCurrency } from '../utils/normalizer';
 import { NavTab } from './Sidebar';
 import { LegalDisclaimer } from './LegalDisclaimer';
+import { MilestoneRewards } from './MilestoneRewards';
 
 interface DashboardOverviewProps {
   report: NormalizedCreditReport;
@@ -419,6 +420,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
           </button>
         </div>
       </div>
+
+      {/* Recovery Milestone Rewards Badges */}
+      <MilestoneRewards
+        report={report}
+        analysis={analysis}
+        onNavigate={(tab) => onNavigateTab(tab as NavTab)}
+      />
 
       {/* Statutory Legal & DPDP Act Compliance Card */}
       <LegalDisclaimer variant="card" />

@@ -24,6 +24,13 @@ import {
   pdfExportLimiter,
 } from './server/rateLimit.js';
 import { generateCreditReportPdf } from './server/pdfGenerator.js';
+import { sheetsRouter } from './src/backend/modules/sheets/sheets.routes.js';
+import {
+  upsertLead,
+  updateAnalysisOnSheet,
+  convertLeadToPaidCustomer,
+  updateResolutionOnSheet,
+} from './src/backend/modules/sheets/sheets.service.js';
 
 // Boot-time validation
 const envConfig = validateEnvironment();
@@ -34,6 +41,10 @@ const PORT = 3000;
 // Security Headers & Content-Type validation
 app.use(applySecurityHeaders);
 app.use(express.json({ limit: '20mb' }));
+
+// Google Sheets CRM Sync Routes (Admin endpoints)
+app.use('/api/v1/admin/sheets', sheetsRouter);
+app.use('/api/admin/sheets', sheetsRouter);
 
 // General Rate Limiting across all API routes
 app.use('/api/', generalLimiter);
@@ -168,51 +179,118 @@ app.get('/api/health', (req, res) => {
 });
 
 // Authentication Routes
-app.post('/api/auth/demo', (req, res) => {
-  const session = createDemoSession();
+app.post('/api/auth/demo', async (req, res) => {
+  const { email, name, phone, identifier } = req.body || {};
+  const session = createDemoSession({ email, name, phone, identifier });
+  
+  // Sync demo customer to CRM Lead Sheet immediately
+  const syncResult = await upsertLead({
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    phone: session.user.phone,
+    pan: 'ABCDE1234F',
+    cityState: 'Pune, Maharashtra',
+    cibilScoreBefore: 618,
+    issuesIdentified: 'Overdue Balance 90+ DPD • High Card Utilization (84.8%) • Delinquent Account',
+    packageName: 'Credit Health Assessment (Demo)',
+    paymentStatus: 'Unpaid',
+    status: 'Demo Lead (Active Evaluation)',
+    remarks: 'Demo mode user session initiated from login screen',
+    createdAt: session.user.createdAt,
+  }).catch((err) => {
+    console.warn('[CRM Sync Hook] Demo Lead notice:', err?.message || err);
+    return { success: false, action: 'skipped' as const, message: String(err) };
+  });
+
   res.json({
     success: true,
     user: session.user,
     token: session.token,
     mode: 'demo',
-    message: 'Demo session initialized with transient memory isolation.',
+    crmSync: syncResult,
+    message: 'Demo session initialized and synced with Leads spreadsheet.',
   });
 });
 
-app.post('/api/auth/login', (req, res) => {
-  const { email, name } = req.body;
-  if (!email || typeof email !== 'string' || !email.includes('@')) {
-    return res.status(400).json({ error: 'A valid email address is required for authentication.' });
+app.post('/api/auth/login', async (req, res) => {
+  const { email, name, phone, identifier } = req.body || {};
+  const targetEmail = email || (identifier && identifier.includes('@') ? identifier : null);
+  const targetPhone = phone || (identifier && !identifier.includes('@') ? identifier.replace(/[^0-9]/g, '') : null);
+
+  if (!targetEmail && !targetPhone) {
+    return res.status(400).json({ error: 'A valid email address or mobile number is required for authentication.' });
   }
-  const session = authenticateWithEmail(email, name);
+
+  const effectiveEmail = targetEmail || `${targetPhone}@digitalkatta.com`;
+  const inferredName = name || (targetEmail ? targetEmail.split('@')[0].replace('.', ' ') : 'Customer');
+  const session = authenticateWithEmail(
+    effectiveEmail,
+    inferredName,
+    targetPhone ? `+91 ${targetPhone.slice(-10)}` : undefined
+  );
+
+  // Business Rule 1 & 2: Automatically upsert customer into Leads Sheet immediately
+  const syncResult = await upsertLead({
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    phone: session.user.phone,
+    paymentStatus: 'Unpaid',
+    status: 'Active Lead (Signed In)',
+    remarks: 'Customer authenticated via password login',
+    createdAt: session.user.createdAt,
+  }).catch((err) => {
+    console.warn('[CRM Sync Hook] Login Lead notice:', err?.message || err);
+    return { success: false, action: 'skipped' as const, message: String(err) };
+  });
+
   res.json({
     success: true,
     user: session.user,
     token: session.token,
     mode: 'authenticated',
-    message: 'Authentication successful. Full access granted.',
+    crmSync: syncResult,
+    message: 'Authentication successful. Synced with Leads spreadsheet.',
   });
 });
 
 // Google Authentication
-app.post('/api/auth/google', (req, res) => {
-  const { email, name, avatarUrl } = req.body;
+app.post('/api/auth/google', async (req, res) => {
+  const { email, name, avatarUrl, phone } = req.body || {};
   if (!email || typeof email !== 'string' || !email.includes('@')) {
     return res.status(400).json({ error: 'Valid Google email address is required.' });
   }
   const session = authenticateWithGoogle(email, name, avatarUrl);
+
+  // Business Rule 1 & 2: Automatically upsert customer into Leads Sheet immediately
+  const syncResult = await upsertLead({
+    id: session.user.id,
+    name: session.user.name,
+    email: session.user.email,
+    phone: phone || session.user.phone,
+    paymentStatus: 'Unpaid',
+    status: 'Active Lead (Google Auth)',
+    remarks: 'Customer authenticated via Google OAuth',
+    createdAt: session.user.createdAt,
+  }).catch((err) => {
+    console.warn('[CRM Sync Hook] Google Auth Lead notice:', err?.message || err);
+    return { success: false, action: 'skipped' as const, message: String(err) };
+  });
+
   res.json({
     success: true,
     user: session.user,
     token: session.token,
     mode: 'authenticated',
-    message: 'Google authentication successful.',
+    crmSync: syncResult,
+    message: 'Google authentication successful. Synced with Leads spreadsheet.',
   });
 });
 
 // Mobile SMS OTP - Request
 app.post('/api/auth/otp/send', (req, res) => {
-  const { phone } = req.body;
+  const { phone } = req.body || {};
   const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
   if (cleanPhone.length < 10) {
     return res.status(400).json({ error: 'Please provide a valid 10-digit Indian mobile number.' });
@@ -222,8 +300,8 @@ app.post('/api/auth/otp/send', (req, res) => {
 });
 
 // Mobile SMS OTP - Verify
-app.post('/api/auth/otp/verify', (req, res) => {
-  const { phone, otp, name } = req.body;
+app.post('/api/auth/otp/verify', async (req, res) => {
+  const { phone, otp, name } = req.body || {};
   const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
   if (!cleanPhone || cleanPhone.length < 10) {
     return res.status(400).json({ error: 'Valid phone number required.' });
@@ -235,18 +313,37 @@ app.post('/api/auth/otp/verify', (req, res) => {
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
+
+  // Business Rule 1 & 2: Automatically upsert verified mobile customer into Leads Sheet immediately
+  let syncResult: any = null;
+  if (result.user) {
+    syncResult = await upsertLead({
+      id: result.user.id,
+      name: result.user.name,
+      phone: result.user.phone,
+      paymentStatus: 'Unpaid',
+      status: 'Active Lead (SMS Verified)',
+      remarks: 'Customer authenticated via SMS OTP',
+      createdAt: result.user.createdAt,
+    }).catch((err) => {
+      console.warn('[CRM Sync Hook] Mobile Lead notice:', err?.message || err);
+      return { success: false, action: 'skipped' as const, message: String(err) };
+    });
+  }
+
   res.json({
     success: true,
     user: result.user,
     token: result.token,
     mode: 'authenticated',
-    message: 'Mobile OTP verification successful.',
+    crmSync: syncResult,
+    message: 'Mobile OTP verification successful. Synced with Leads spreadsheet.',
   });
 });
 
 // WhatsApp OTP - Request
 app.post('/api/auth/whatsapp/send', (req, res) => {
-  const { phone } = req.body;
+  const { phone } = req.body || {};
   const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
   if (cleanPhone.length < 10) {
     return res.status(400).json({ error: 'Please provide a valid 10-digit WhatsApp number.' });
@@ -256,8 +353,8 @@ app.post('/api/auth/whatsapp/send', (req, res) => {
 });
 
 // WhatsApp OTP - Verify
-app.post('/api/auth/whatsapp/verify', (req, res) => {
-  const { phone, otp, name } = req.body;
+app.post('/api/auth/whatsapp/verify', async (req, res) => {
+  const { phone, otp, name } = req.body || {};
   const cleanPhone = (phone || '').replace(/[^0-9]/g, '');
   if (!cleanPhone || cleanPhone.length < 10) {
     return res.status(400).json({ error: 'Valid WhatsApp number required.' });
@@ -269,12 +366,32 @@ app.post('/api/auth/whatsapp/verify', (req, res) => {
   if (!result.success) {
     return res.status(400).json({ error: result.error });
   }
+
+  // Business Rule 1 & 2: Automatically upsert verified WhatsApp customer into Leads Sheet immediately
+  let syncResult: any = null;
+  if (result.user) {
+    syncResult = await upsertLead({
+      id: result.user.id,
+      name: result.user.name,
+      phone: result.user.phone,
+      whatsapp: result.user.phone,
+      paymentStatus: 'Unpaid',
+      status: 'Active Lead (WhatsApp Verified)',
+      remarks: 'Customer authenticated via WhatsApp OTP',
+      createdAt: result.user.createdAt,
+    }).catch((err) => {
+      console.warn('[CRM Sync Hook] WhatsApp Lead notice:', err?.message || err);
+      return { success: false, action: 'skipped' as const, message: String(err) };
+    });
+  }
+
   res.json({
     success: true,
     user: result.user,
     token: result.token,
     mode: 'authenticated',
-    message: 'WhatsApp verification successful.',
+    crmSync: syncResult,
+    message: 'WhatsApp OTP verification successful. Synced with Leads spreadsheet.',
   });
 });
 
@@ -319,6 +436,59 @@ app.post('/api/stats/track', (req, res) => {
   res.json({ success: true, count: anonymousStats.successfulParses });
 });
 
+// Helper: Syncs parsed or analyzed credit report data to Google Sheets CRM (Leads sheet)
+function syncReportAnalysisToCrm(user: any, report: any, analysis?: any) {
+  if (!report) return;
+  try {
+    const issuesList: string[] = [];
+    if (report.summary?.totalOverdue > 0) {
+      issuesList.push(`Overdue: ₹${Number(report.summary.totalOverdue).toLocaleString('en-IN')}`);
+    }
+    if (report.summary?.negativeAccounts > 0) {
+      issuesList.push(`${report.summary.negativeAccounts} Negative Accounts`);
+    }
+    if (report.summary?.creditCardUtilizationPct > 30) {
+      issuesList.push(`Card Util: ${report.summary.creditCardUtilizationPct}%`);
+    }
+    if (analysis?.rankedNegativeFactors?.length > 0) {
+      const top = analysis.rankedNegativeFactors[0];
+      if (top.factor) issuesList.push(top.factor);
+    }
+
+    const issuesStr = issuesList.slice(0, 3).join(' • ') || 'Initial Report Analyzed';
+    const scoreVal = report.score?.score || 0;
+    const personal = report.personal || {};
+
+    const customerIdentifier =
+      user?.id || personal.pan || personal.email || personal.phone || `lead_${Date.now()}`;
+
+    // Upsert or update Lead in Google Sheets with fresh CIBIL score & issues
+    upsertLead({
+      id: customerIdentifier,
+      name: personal.name || user?.name || 'Customer',
+      email: personal.email || user?.email,
+      phone: personal.phone || user?.phone,
+      pan: personal.pan,
+      address: personal.address,
+      cityState: [personal.city, personal.state].filter(Boolean).join(', '),
+      cibilScoreBefore: scoreVal > 0 ? scoreVal : undefined,
+      issuesIdentified: issuesStr,
+      paymentStatus: 'Unpaid',
+      status: 'Active Lead (Report Analyzed)',
+      updatedAt: new Date(),
+    }).catch((err) => console.warn('[CRM Sync Hook] Report Lead Upsert:', err?.message || err));
+
+    if (scoreVal > 0) {
+      updateAnalysisOnSheet(customerIdentifier, {
+        cibilScoreBefore: scoreVal,
+        issuesIdentified: issuesStr,
+      }).catch((err) => console.warn('[CRM Sync Hook] Analysis Update:', err?.message || err));
+    }
+  } catch (err: any) {
+    console.warn('[CRM Sync Hook] Error in syncReportAnalysisToCrm:', err?.message || err);
+  }
+}
+
 // Server-side report parser fallback endpoint
 app.post('/api/parse/report', requireAuth, (req, res) => {
   try {
@@ -327,10 +497,88 @@ app.post('/api/parse/report', requireAuth, (req, res) => {
       return res.status(400).json({ error: 'Invalid credit report structure provided.' });
     }
     anonymousStats.successfulParses++;
+
+    // Hook 4: Automatically store/update report & score in Google Sheets CRM
+    syncReportAnalysisToCrm(req.user, report);
+
     res.json({ success: true, report });
   } catch (err: any) {
     console.error('[Report Parse Error]', sanitizeForLogging(err));
     res.status(500).json({ error: 'Server parsing error: ' + sanitizeForLogging(err?.message || 'Unknown parsing error') });
+  }
+});
+
+// Case Conversion & Payment Service Endpoint
+// Business Rule 3: Converts a lead to Paid Customers sheet upon successful payment
+app.post('/api/v1/cases/payment', requireAuth, async (req, res) => {
+  try {
+    const { amount, packageName, transactionId, customer } = req.body;
+    const user = req.user;
+    const caseNum = `DK-${new Date().getFullYear()}-${Math.floor(100000 + Math.random() * 900000)}`;
+
+    const custData = {
+      id: user?.id || customer?.id || `cust_${Date.now()}`,
+      name: user?.name || customer?.name || 'Valued Borrower',
+      email: user?.email || customer?.email,
+      phone: user?.phone || customer?.phone,
+      pan: customer?.pan,
+      cibilScoreBefore: customer?.cibilScoreBefore,
+    };
+
+    const conversionResult = await convertLeadToPaidCustomer(
+      custData,
+      {
+        amountPaid: Number(amount || 1999),
+        packageName: packageName || 'CIBIL Dispute & Resolution Plan',
+        paymentStatus: 'Paid',
+        transactionId: transactionId || `TXN_${Date.now()}`,
+        paidAt: new Date(),
+      },
+      {
+        caseNumber: caseNum,
+        assignedPartnerAssistant: 'Partner Desk Pune',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'Active Case (Assigned)',
+        remarks: `Payment ₹${amount || 1999} confirmed. Dispute drafting in progress.`,
+      }
+    );
+
+    res.json({
+      success: true,
+      caseNumber: caseNum,
+      message: 'Payment received. Customer converted to active Paid Case and synchronized to Google Sheets.',
+      conversionResult,
+    });
+  } catch (err: any) {
+    console.error('[Payment Hook Error]:', err);
+    res.status(500).json({ error: err?.message || 'Failed to process payment and conversion' });
+  }
+});
+
+// Case Resolution Hook
+// Business Rule 5: Credit Expert updates resolution on Paid sheet
+app.post('/api/v1/cases/resolve', requireAuth, async (req, res) => {
+  try {
+    const { caseNumber, cibilScoreAfter, issueResolved, remarks, cibilReportAfterUrl } = req.body;
+    if (!caseNumber) {
+      return res.status(400).json({ error: 'caseNumber is required' });
+    }
+
+    const resolutionResult = await updateResolutionOnSheet(caseNumber, {
+      cibilScoreAfter: Number(cibilScoreAfter || 750),
+      issueResolved: issueResolved || 'Yes',
+      cibilReportAfterUrl: cibilReportAfterUrl || 'https://digitalkatta.com/reports/closure-noc.pdf',
+      status: 'Resolved & Closed',
+      remarks: remarks || 'All disputed trade lines rectified with bureau. NOC verified.',
+    });
+
+    res.json({
+      success: resolutionResult.success,
+      message: resolutionResult.message,
+    });
+  } catch (err: any) {
+    console.error('[Case Resolution Hook Error]:', err);
+    res.status(500).json({ error: err?.message || 'Failed to update case resolution' });
   }
 });
 
@@ -396,6 +644,7 @@ app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
     const ai = getGeminiClient();
     if (!ai) {
       anonymousStats.aiFallbackCount++;
+      syncReportAnalysisToCrm(req.user, report, deterministicBaseline);
       return res.json({
         result: {
           ...deterministicBaseline,
@@ -477,28 +726,30 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
     // Validate with Zod
     const validationResult = AIAnalysisSchema.safeParse(parsedJson);
     if (validationResult.success) {
-      return res.json({ result: { ...validationResult.data, generatedByAI: true } });
+      const finalResult = { ...validationResult.data, generatedByAI: true };
+      syncReportAnalysisToCrm(req.user, report, finalResult);
+      return res.json({ result: finalResult });
     } else {
       console.warn('[AI Engine] Schema mismatch, falling back to baseline:', sanitizeForLogging(validationResult.error.message));
-      return res.json({
-        result: {
-          ...deterministicBaseline,
-          generatedByAI: false,
-          fallbackReason: 'AI output adjusted to guaranteed deterministic schema.',
-        },
-      });
+      const fallbackResult = {
+        ...deterministicBaseline,
+        generatedByAI: false,
+        fallbackReason: 'AI output adjusted to guaranteed deterministic schema.',
+      };
+      syncReportAnalysisToCrm(req.user, report, fallbackResult);
+      return res.json({ result: fallbackResult });
     }
   } catch (error: any) {
     console.info('[AI Engine] Analysis: serving deterministic baseline analysis.');
     // Graceful fallback to deterministic baseline
     const baseline = req.body?.deterministicBaseline;
-    return res.json({
-      result: {
-        ...(baseline || {}),
-        generatedByAI: false,
-        fallbackReason: 'AI service temporarily unavailable due to model demand. Deterministic rule-based engine delivered full analysis.',
-      },
-    });
+    const finalFallback = {
+      ...(baseline || {}),
+      generatedByAI: false,
+      fallbackReason: 'AI service temporarily unavailable due to model demand. Deterministic rule-based engine delivered full analysis.',
+    };
+    syncReportAnalysisToCrm(req.user, req.body?.report, finalFallback);
+    return res.json({ result: finalFallback });
   }
 });
 

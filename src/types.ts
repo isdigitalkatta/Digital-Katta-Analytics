@@ -67,12 +67,18 @@ export interface CreditEnquiry {
 export interface PersonalProfile {
   name: string;
   panMasked: string;
+  pan?: string;
   bureauName?: string;
   dateOfBirth?: string;
   gender?: string;
   mobileMasked?: string;
+  mobile?: string;
+  phone?: string;
   emailMasked?: string;
+  email?: string;
   address?: string;
+  city?: string;
+  state?: string;
   reportDate: string;
   reportNumber?: string;
 }
@@ -280,3 +286,21 @@ export interface ScoreOutlookPoint {
 }
 
 export type OutlookScenarioType = 'all' | 'realistic' | 'optimistic' | 'conservative';
+
+export interface MilestoneReward {
+  id: string;
+  title: string;
+  description: string;
+  category: 'dispute' | 'streak' | 'score' | 'audit' | 'action' | 'utilization';
+  tier: 'bronze' | 'silver' | 'gold' | 'platinum';
+  points: number;
+  currentValue: number;
+  targetValue: number;
+  unit: string;
+  isUnlocked: boolean;
+  unlockedAt?: string;
+  howToUnlock: string;
+  actionLabel: string;
+  actionTab?: string;
+  bureauTip: string;
+}

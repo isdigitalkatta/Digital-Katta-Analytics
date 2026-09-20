@@ -81,13 +81,44 @@ export function verifyToken(token: string): AuthUser | null {
 }
 
 /**
- * Issue or retrieve a demo guest session
+ * Issue or retrieve a demo guest session with realistic lead info
  */
-export function createDemoSession(): { user: AuthUser; token: string } {
+export function createDemoSession(params?: {
+  email?: string;
+  name?: string;
+  phone?: string;
+  identifier?: string;
+}): { user: AuthUser; token: string } {
+  const rawId = params?.identifier || params?.email || params?.phone;
+  let email = params?.email;
+  let phone = params?.phone;
+  let name = params?.name;
+
+  if (rawId) {
+    if (rawId.includes('@')) {
+      email = rawId.trim().toLowerCase();
+      if (!name) {
+        name = email.includes('sagar') ? 'Sagar Dhumal (Demo)' : 'Demo Borrower';
+      }
+    } else {
+      const clean = rawId.replace(/[^0-9]/g, '');
+      if (clean.length >= 10) {
+        phone = `+91 ${clean.slice(-10)}`;
+        if (!email) email = `${clean.slice(-10)}@digitalkatta.com`;
+        if (!name) name = 'Demo Mobile User';
+      }
+    }
+  }
+
+  const finalEmail = email || 'sagar.dhumal@example.com';
+  const finalName = name || 'Sagar Dhumal (Demo)';
+  const finalPhone = phone || '+91 98201 23456';
+
   const demoUser: AuthUser = {
-    id: `demo_${Math.random().toString(36).substring(2, 9)}`,
-    email: 'guest@digitalkatta.local',
-    name: 'Guest Borrower',
+    id: `demo_${Buffer.from(finalEmail).toString('hex').slice(0, 10)}`,
+    email: finalEmail,
+    name: finalName,
+    phone: finalPhone,
     provider: 'demo',
     role: 'demo',
     isDemo: true,
@@ -100,7 +131,11 @@ export function createDemoSession(): { user: AuthUser; token: string } {
 /**
  * Login or register user with email
  */
-export function authenticateWithEmail(email: string, name?: string): { user: AuthUser; token: string } {
+export function authenticateWithEmail(
+  email: string,
+  name?: string,
+  phone?: string
+): { user: AuthUser; token: string } {
   const normalizedEmail = email.trim().toLowerCase();
   const userId = `usr_em_${Buffer.from(normalizedEmail).toString('hex').slice(0, 12)}`;
   
@@ -110,12 +145,16 @@ export function authenticateWithEmail(email: string, name?: string): { user: Aut
       id: userId,
       email: normalizedEmail,
       name: name?.trim() || normalizedEmail.split('@')[0],
+      phone: phone || undefined,
       provider: 'email',
       role: normalizedEmail.endsWith('@digitalkatta.com') ? 'admin' : 'user',
       isDemo: false,
       createdAt: new Date().toISOString(),
     };
     usersDb.set(userId, existing);
+  } else {
+    if (name) existing.name = name;
+    if (phone) existing.phone = phone;
   }
 
   const token = generateToken(existing, '14d');

@@ -14,6 +14,7 @@ import {
   Download,
 } from 'lucide-react';
 import { NormalizedCreditReport, AIAnalysisResult } from '../../types';
+import { MilestoneRewards } from '../MilestoneRewards';
 
 interface HomePageProps {
   onNavigate: (tab: string) => void;
@@ -225,7 +226,14 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
       </div>
 
-      {/* 4. Green Quote Banner */}
+      {/* 4. Milestone Rewards Component */}
+      <MilestoneRewards
+        report={report}
+        analysis={analysis}
+        onNavigate={onNavigate}
+      />
+
+      {/* 5. Green Quote Banner */}
       <div className="bg-[#EBF9F1] border border-[#B7EBD0] rounded-2xl p-5 sm:p-6 flex items-center gap-4 text-[#16A34A] shadow-xs">
         <div className="w-10 h-10 rounded-full bg-white text-[#16A34A] flex items-center justify-center shrink-0 shadow-xs">
           <Quote className="w-5 h-5" />

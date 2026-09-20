@@ -30,7 +30,7 @@ interface AuthContextType {
   loginWithGoogle: (profile?: { email: string; name?: string; avatarUrl?: string }) => Promise<{ success: boolean; error?: string }>;
   sendOtp: (phone: string, channel: 'sms' | 'whatsapp') => Promise<{ success: boolean; error?: string; demoCode?: string; message?: string }>;
   verifyOtp: (phone: string, otp: string, channel: 'sms' | 'whatsapp', name?: string) => Promise<{ success: boolean; error?: string }>;
-  loginAsDemo: () => Promise<void>;
+  loginAsDemo: (customInfo?: { email?: string; name?: string; phone?: string; identifier?: string }) => Promise<{ success: boolean; user?: User; error?: string }>;
   logout: () => void;
   getAuthHeaders: () => Record<string, string>;
   authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>;
@@ -91,19 +91,26 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     initAuth();
   }, []);
 
-  const initializeDemo = async () => {
+  const initializeDemo = async (customInfo?: { email?: string; name?: string; phone?: string; identifier?: string }) => {
     try {
-      const res = await fetch('/api/auth/demo', { method: 'POST' });
+      const res = await fetch('/api/auth/demo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customInfo || {}),
+      });
       if (res.ok) {
         const data = await res.json();
         setToken(data.token);
         setUser(data.user);
         localStorage.setItem(TOKEN_KEY, data.token);
         localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+        return { success: true, user: data.user };
       }
-    } catch (err) {
+    } catch (err: any) {
       console.warn('Demo session init offline notice:', err);
+      return { success: false, error: err?.message || 'Demo session failed' };
     }
+    return { success: false, error: 'Failed to initialize demo' };
   };
 
   const login = async (email: string, name?: string) => {
@@ -204,8 +211,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const loginAsDemo = async () => {
-    await initializeDemo();
+  const loginAsDemo = async (customInfo?: { email?: string; name?: string; phone?: string; identifier?: string }) => {
+    return await initializeDemo(customInfo);
   };
 
   const logout = () => {
