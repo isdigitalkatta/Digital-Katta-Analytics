@@ -58,6 +58,9 @@ i18n
     interpolation: {
       escapeValue: false, // React already safe from XSS
     },
+    react: {
+      useSuspense: false,
+    },
   });
 
 // Apply document direction (RTL for Urdu)
@@ -68,7 +71,11 @@ if (typeof document !== 'undefined') {
 }
 
 export const changeAppLanguage = async (newLang: SupportedLanguage) => {
-  await i18n.changeLanguage(newLang);
+  try {
+    await i18n.changeLanguage(newLang);
+  } catch (err) {
+    console.error('Failed to change i18n language:', err);
+  }
   try {
     localStorage.setItem(STORAGE_LANG_KEY, newLang);
   } catch (e) {
@@ -78,6 +85,9 @@ export const changeAppLanguage = async (newLang: SupportedLanguage) => {
     const isRtl = newLang === 'ur';
     document.documentElement.setAttribute('dir', isRtl ? 'rtl' : 'ltr');
     document.documentElement.setAttribute('lang', newLang);
+  }
+  if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('digitalkatta_language_changed', { detail: newLang }));
   }
 };
 

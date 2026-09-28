@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { NormalizedCreditReport, AIAnalysisResult } from '../../types';
 import { MilestoneRewards } from '../MilestoneRewards';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface HomePageProps {
   onNavigate: (tab: string) => void;
@@ -31,15 +32,16 @@ export const HomePage: React.FC<HomePageProps> = ({
   userName = 'Sagar',
   onDownloadPdf,
 }) => {
+  const { t } = useAppLanguage();
   return (
     <div className="space-y-6 sm:space-y-8 text-left max-w-6xl mx-auto pb-10">
       {/* 1. Greeting Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#12233F] font-heading tracking-tight flex items-center gap-2">
-          Good Morning, {userName} <span className="inline-block animate-wave">👋</span>
+          {t("home.greeting", "Good Morning")}, {userName} <span className="inline-block animate-wave">👋</span>
         </h1>
         <p className="text-sm sm:text-base text-slate-600 mt-1 font-medium">
-          Take control of your credit. A better financial future starts here.
+          {t("home.greetingSub", "Take control of your credit. A better financial future starts here.")}
         </p>
       </div>
 
@@ -53,16 +55,16 @@ export const HomePage: React.FC<HomePageProps> = ({
           <div className="md:col-span-7 space-y-3 sm:space-y-4">
             <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-bold bg-white text-[#F56B2B] shadow-2xs border border-orange-200/60">
               <Sparkles className="w-3.5 h-3.5" />
-              <span>Personalized Credit Guidance</span>
+              <span>{t("home.heroBadge", "Personalized Credit Guidance")}</span>
             </span>
 
             <h2 className="text-2xl sm:text-3xl lg:text-4xl font-extrabold text-[#12233F] font-heading leading-tight tracking-tight">
-              Know Your CIBIL Score.<br />
-              <span className="text-[#F56B2B]">Plan a Brighter Tomorrow!</span>
+              {t("home.heroTitle", "Know Your CIBIL Score.")}<br />
+              <span className="text-[#F56B2B]">{t("home.heroHighlight", "Plan a Brighter Tomorrow!")}</span>
             </h2>
 
             <p className="text-xs sm:text-sm text-slate-700 leading-relaxed max-w-lg">
-              Understand factors affecting your credit score, fix errors, and build a personalized plan to improve your financial opportunities.
+              {t("home.heroSubtitle", "Understand factors affecting your credit score, fix errors, and build a personalized plan to improve your financial opportunities.")}
             </p>
 
             <div className="pt-2 flex flex-wrap items-center gap-3">
@@ -71,7 +73,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 onClick={() => onNavigate('my-reports')}
                 className="inline-flex items-center gap-2 px-6 py-3.5 rounded-xl bg-[#FF6A00] hover:bg-[#E65F00] text-white font-bold text-sm shadow-md shadow-orange-500/20 transition-all cursor-pointer transform active:scale-98"
               >
-                <span>Upload CIBIL Report</span>
+                <span>{t("home.uploadBtn", "Upload CIBIL Report")}</span>
                 <ArrowRight className="w-4 h-4" />
               </button>
 
@@ -80,16 +82,16 @@ export const HomePage: React.FC<HomePageProps> = ({
                 onClick={() => onNavigate('analysis')}
                 className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-white hover:bg-orange-50 text-[#12233F] border-2 border-[#E8ECF0] hover:border-orange-200 font-bold text-sm transition-all cursor-pointer"
               >
-                <span>View Current Analysis</span>
+                <span>{t("home.viewAnalysisBtn", "View Current Analysis")}</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => onNavigate('future-outlook')}
-                className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#FF6A00] border-2 border-orange-200 font-bold text-sm transition-all cursor-pointer"
+                className="inline-flex items-center gap-2 px-4 py-3 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border-2 border-[#E8ECF0] font-bold text-sm transition-all cursor-pointer"
               >
-                <TrendingUp className="w-4 h-4 text-[#FF6A00]" />
-                <span>Future Outlook</span>
+                <TrendingUp className="w-4 h-4 text-slate-600" />
+                <span>{t("home.futureOutlookBtn", "Future Outlook")}</span>
               </button>
 
               {onDownloadPdf && (
@@ -100,7 +102,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                   title="Download AI CIBIL Analysis in PDF"
                 >
                   <Download className="w-4 h-4 text-emerald-600" />
-                  <span>Download PDF</span>
+                  <span>{t("home.downloadPdfBtn", "Download PDF")}</span>
                 </button>
               )}
             </div>
@@ -123,7 +125,7 @@ export const HomePage: React.FC<HomePageProps> = ({
                 <rect x="100" y="55" width="80" height="14" rx="4" fill="#FFF2E8" />
                 <rect x="100" y="75" width="80" height="40" rx="8" fill="#F8FAFC" stroke="#E2E8F0" />
                 <text x="140" y="98" textAnchor="middle" fill="#F56B2B" fontSize="16" fontWeight="bold" fontFamily="sans-serif">
-                  {report ? report.score.cibilScore : '750+'}
+                  {report ? (report.score.score || (report.score as any).cibilScore) : '750+'}
                 </text>
                 <text x="140" y="110" textAnchor="middle" fill="#64748B" fontSize="8" fontFamily="sans-serif">
                   CIBIL SCORE
@@ -170,10 +172,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             <Upload className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-[#12233F] group-hover:text-[#0284C7] transition-colors">
-            Upload Report
+            {t("home.uploadReportCard", "Upload Report")}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            PDF, HTML or JSON
+            {t("home.uploadReportSub", "PDF, HTML or JSON")}
           </p>
         </div>
 
@@ -186,10 +188,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             <BarChart3 className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-[#12233F] group-hover:text-[#16A34A] transition-colors">
-            Get Analysis
+            {t("home.getAnalysisCard", "Get Analysis")}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            AI insights & key issues
+            {t("home.getAnalysisSub", "AI insights & key issues")}
           </p>
         </div>
 
@@ -202,10 +204,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             <ListTodo className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-[#12233F] group-hover:text-[#EA580C] transition-colors">
-            Resolution Plan
+            {t("home.resolutionPlanCard", "Resolution Plan")}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            Step-by-step guidance
+            {t("home.resolutionPlanSub", "Step-by-step guidance")}
           </p>
         </div>
 
@@ -218,10 +220,10 @@ export const HomePage: React.FC<HomePageProps> = ({
             <Headphones className="w-6 h-6" />
           </div>
           <h2 className="text-base font-bold text-[#12233F] group-hover:text-[#9333EA] transition-colors">
-            Expert Support
+            {t("home.expertSupportCard", "Expert Support")}
           </h2>
           <p className="text-xs text-slate-500 mt-1">
-            We are with you
+            {t("home.expertSupportSub", "We are with you")}
           </p>
         </div>
       </div>
@@ -240,7 +242,7 @@ export const HomePage: React.FC<HomePageProps> = ({
         </div>
         <div className="text-left">
           <p className="text-sm sm:text-base font-semibold text-[#15803D]">
-            “A healthy credit profile opens doors to bigger opportunities.”
+            {t("home.quoteText", "“A healthy credit profile opens doors to bigger opportunities.”")}
           </p>
           <p className="text-xs font-bold text-[#16A34A] mt-0.5">
             — Digital Katta

@@ -1,8 +1,49 @@
 import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { validateEnvironment } from './security.js';
+import { CustomerProfile, getProfileByUserId, isProfileComplete } from './profileStore.js';
 
 const { jwtSecret } = validateEnvironment();
+
+export type StaffRole = 'ADMIN' | 'LEAD_HANDLER' | 'CREDIT_EXPERT';
+export type UserRole = 'user' | 'demo' | 'admin' | StaffRole | 'CUSTOMER';
+
+/**
+ * Staff Directory Mapping for Internal Roles
+ * Maps verified operational email addresses to organizational staff roles
+ */
+export const STAFF_MAP: Record<string, { role: StaffRole; name: string; title: string }> = {
+  'isdigitalkatta@gmail.com': {
+    role: 'ADMIN',
+    name: 'Digital Katta Admin',
+    title: 'Platform Owner & Administrator',
+  },
+  'admin@digitalkatta.com': {
+    role: 'ADMIN',
+    name: 'Super Admin',
+    title: 'Executive Managing Director',
+  },
+  'leadhandler@digitalkatta.com': {
+    role: 'LEAD_HANDLER',
+    name: 'Pooja Deshmukh',
+    title: 'Senior Lead Desk Handler',
+  },
+  'leads@digitalkatta.com': {
+    role: 'LEAD_HANDLER',
+    name: 'Siddharth Joshi',
+    title: 'Lead Operations Executive',
+  },
+  'creditexpert@digitalkatta.com': {
+    role: 'CREDIT_EXPERT',
+    name: 'Adv. Ramesh Patil',
+    title: 'Senior Dispute Counsel',
+  },
+  'expert@digitalkatta.com': {
+    role: 'CREDIT_EXPERT',
+    name: 'Dr. Neha Kulkarni',
+    title: 'Principal Credit Analyst',
+  },
+};
 
 export interface AuthUser {
   id: string;
@@ -10,10 +51,12 @@ export interface AuthUser {
   phone?: string;
   name: string;
   provider: 'email' | 'phone_otp' | 'whatsapp' | 'google' | 'demo';
-  role: 'user' | 'demo' | 'admin';
+  role: UserRole;
   isDemo: boolean;
   avatarUrl?: string;
   createdAt: string;
+  profile?: CustomerProfile | null;
+  isProfileComplete?: boolean;
 }
 
 // Extend Express Request type
@@ -52,6 +95,7 @@ export function generateToken(user: AuthUser, expiresIn: string = '7d'): string 
       provider: user.provider,
       isDemo: user.isDemo,
       avatarUrl: user.avatarUrl,
+      isProfileComplete: user.isProfileComplete,
     },
     jwtSecret,
     { expiresIn: expiresIn as any }
@@ -64,16 +108,29 @@ export function generateToken(user: AuthUser, expiresIn: string = '7d'): string 
 export function verifyToken(token: string): AuthUser | null {
   try {
     const decoded = jwt.verify(token, jwtSecret) as any;
+    const profile = getProfileByUserId(decoded.sub);
+    const complete = decoded.isDemo ? true : isProfileComplete(profile);
+
+    const rawRole = (decoded.role || '').toUpperCase();
+    const mappedStaff = decoded.email ? STAFF_MAP[decoded.email.toLowerCase()] : null;
+    const finalRole: UserRole = mappedStaff
+      ? mappedStaff.role
+      : (rawRole === 'ADMIN' || rawRole === 'LEAD_HANDLER' || rawRole === 'CREDIT_EXPERT')
+        ? (rawRole as StaffRole)
+        : (decoded.role || 'user');
+
     return {
       id: decoded.sub,
       email: decoded.email,
       phone: decoded.phone,
-      name: decoded.name || 'User',
-      role: decoded.role || 'user',
+      name: profile?.fullName || decoded.name || 'User',
+      role: finalRole,
       provider: decoded.provider || (decoded.isDemo ? 'demo' : 'email'),
       isDemo: !!decoded.isDemo,
       avatarUrl: decoded.avatarUrl,
       createdAt: decoded.iat ? new Date(decoded.iat * 1000).toISOString() : new Date().toISOString(),
+      profile: profile || null,
+      isProfileComplete: complete,
     };
   } catch (err) {
     return null;
@@ -141,20 +198,42 @@ export function authenticateWithEmail(
   
   let existing = usersDb.get(userId);
   if (!existing) {
+    const profile = getProfileByUserId(userId);
+    const staffMapping = STAFF_MAP[normalizedEmail];
+    const computedRole: UserRole = staffMapping
+      ? staffMapping.role
+      : normalizedEmail.endsWith('@digitalkatta.com')
+        ? (normalizedEmail.includes('lead') || normalizedEmail.includes('desk')
+            ? 'LEAD_HANDLER'
+            : normalizedEmail.includes('expert') || normalizedEmail.includes('analyst')
+            ? 'CREDIT_EXPERT'
+            : 'ADMIN')
+        : 'user';
+
     existing = {
       id: userId,
       email: normalizedEmail,
-      name: name?.trim() || normalizedEmail.split('@')[0],
-      phone: phone || undefined,
+      name: staffMapping?.name || profile?.fullName || name?.trim() || normalizedEmail.split('@')[0],
+      phone: profile?.phone || phone || undefined,
       provider: 'email',
-      role: normalizedEmail.endsWith('@digitalkatta.com') ? 'admin' : 'user',
+      role: computedRole,
       isDemo: false,
       createdAt: new Date().toISOString(),
+      profile: profile || null,
+      isProfileComplete: isProfileComplete(profile),
     };
     usersDb.set(userId, existing);
   } else {
-    if (name) existing.name = name;
-    if (phone) existing.phone = phone;
+    const profile = getProfileByUserId(userId);
+    if (profile) {
+      existing.profile = profile;
+      existing.name = profile.fullName;
+      existing.isProfileComplete = isProfileComplete(profile);
+    } else {
+      if (name) existing.name = name;
+      if (phone) existing.phone = phone;
+      existing.isProfileComplete = false;
+    }
   }
 
   const token = generateToken(existing, '14d');
@@ -174,19 +253,41 @@ export function authenticateWithGoogle(
 
   let existing = usersDb.get(userId);
   if (!existing) {
+    const profile = getProfileByUserId(userId);
+    const staffMapping = STAFF_MAP[normalizedEmail];
+    const computedRole: UserRole = staffMapping
+      ? staffMapping.role
+      : normalizedEmail.endsWith('@digitalkatta.com')
+        ? (normalizedEmail.includes('lead') || normalizedEmail.includes('desk')
+            ? 'LEAD_HANDLER'
+            : normalizedEmail.includes('expert') || normalizedEmail.includes('analyst')
+            ? 'CREDIT_EXPERT'
+            : 'ADMIN')
+        : 'user';
+
     existing = {
       id: userId,
       email: normalizedEmail,
-      name: name?.trim() || normalizedEmail.split('@')[0],
+      name: staffMapping?.name || profile?.fullName || name?.trim() || normalizedEmail.split('@')[0],
       provider: 'google',
       avatarUrl: avatarUrl || `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(name || normalizedEmail)}`,
-      role: normalizedEmail.endsWith('@digitalkatta.com') ? 'admin' : 'user',
+      role: computedRole,
       isDemo: false,
       createdAt: new Date().toISOString(),
+      profile: profile || null,
+      isProfileComplete: isProfileComplete(profile),
     };
     usersDb.set(userId, existing);
   } else {
-    if (name) existing.name = name;
+    const profile = getProfileByUserId(userId);
+    if (profile) {
+      existing.profile = profile;
+      existing.name = profile.fullName;
+      existing.isProfileComplete = isProfileComplete(profile);
+    } else {
+      if (name) existing.name = name;
+      existing.isProfileComplete = false;
+    }
     if (avatarUrl) existing.avatarUrl = avatarUrl;
   }
 
@@ -269,20 +370,48 @@ export function verifyOtpForPhone(
 
   let existing = usersDb.get(userId);
   if (!existing) {
+    const profile = getProfileByUserId(userId);
     existing = {
       id: userId,
       phone: formattedPhone,
-      name: name?.trim() || `${channel === 'whatsapp' ? 'WhatsApp' : 'Mobile'} User (${cleanPhone.slice(-4)})`,
+      name: profile?.fullName || name?.trim() || `${channel === 'whatsapp' ? 'WhatsApp' : 'Mobile'} User (${cleanPhone.slice(-4)})`,
       provider: channel === 'whatsapp' ? 'whatsapp' : 'phone_otp',
       role: 'user',
       isDemo: false,
       createdAt: new Date().toISOString(),
+      profile: profile || null,
+      isProfileComplete: isProfileComplete(profile),
     };
     usersDb.set(userId, existing);
+  } else {
+    const profile = getProfileByUserId(userId);
+    if (profile) {
+      existing.profile = profile;
+      existing.name = profile.fullName;
+      existing.isProfileComplete = isProfileComplete(profile);
+    } else {
+      if (name) existing.name = name;
+      existing.isProfileComplete = false;
+    }
   }
 
   const token = generateToken(existing, '14d');
   return { success: true, user: existing, token };
+}
+
+/**
+ * Updates an active user record in memory when profile is updated
+ */
+export function updateUserProfileInAuth(userId: string, profile: CustomerProfile) {
+  const existing = usersDb.get(userId);
+  if (existing) {
+    existing.profile = profile;
+    existing.name = profile.fullName;
+    if (profile.email) existing.email = profile.email;
+    if (profile.phone) existing.phone = profile.phone;
+    existing.isProfileComplete = isProfileComplete(profile);
+    usersDb.set(userId, existing);
+  }
 }
 
 /**
@@ -325,3 +454,87 @@ export function requireFullUser(req: Request, res: Response, next: NextFunction)
     next();
   });
 }
+
+/**
+ * Check if an authenticated user has staff/admin privileges
+ */
+export function isStaffUser(user?: AuthUser | null): boolean {
+  if (!user) return false;
+  const r = (user.role || '').toUpperCase();
+  return r === 'ADMIN' || r === 'LEAD_HANDLER' || r === 'CREDIT_EXPERT';
+}
+
+/**
+ * Express Middleware: Require Staff Access (ADMIN, LEAD_HANDLER, CREDIT_EXPERT)
+ * Customers and demo sessions are strictly blocked from accessing CRM routes.
+ */
+export function requireStaff(req: Request, res: Response, next: NextFunction) {
+  requireAuth(req, res, () => {
+    if (!req.user || !isStaffUser(req.user)) {
+      return res.status(403).json({
+        success: false,
+        error: 'Access denied: CRM pages and sheets operations are restricted to authorized Digital Katta staff (ADMIN, LEAD_HANDLER, CREDIT_EXPERT).',
+        code: 'STAFF_ROLE_REQUIRED',
+      });
+    }
+    next();
+  });
+}
+
+/**
+ * Express Middleware: Require specific Staff Role (ADMIN always has universal clearance)
+ */
+export function requireRole(allowedRoles: StaffRole[]) {
+  return (req: Request, res: Response, next: NextFunction) => {
+    requireStaff(req, res, () => {
+      const userRole = (req.user?.role || '').toUpperCase() as StaffRole;
+      if (userRole === 'ADMIN' || allowedRoles.includes(userRole)) {
+        return next();
+      }
+      return res.status(403).json({
+        success: false,
+        error: `Access denied: Action requires one of [${allowedRoles.join(', ')}]. Current role: ${userRole}`,
+        code: 'INSUFFICIENT_STAFF_ROLE',
+      });
+    });
+  };
+}
+
+/**
+ * Issue or switch to a verified staff session
+ */
+export function authenticateAsStaff(
+  role: StaffRole = 'ADMIN',
+  customEmail?: string
+): { user: AuthUser; token: string } {
+  const staffProfileEntry = Object.entries(STAFF_MAP).find(([em, info]) => {
+    if (customEmail && em === customEmail.toLowerCase()) return true;
+    return info.role === role;
+  });
+
+  const staffEmail = customEmail || staffProfileEntry?.[0] || `${role.toLowerCase()}@digitalkatta.com`;
+  const staffName =
+    staffProfileEntry?.[1]?.name ||
+    (role === 'ADMIN'
+      ? 'Digital Katta Admin'
+      : role === 'LEAD_HANDLER'
+      ? 'Pooja Deshmukh (Lead Desk)'
+      : 'Adv. Ramesh Patil (Credit Expert)');
+  const userId = `usr_staff_${role.toLowerCase()}_${Buffer.from(staffEmail).toString('hex').slice(0, 8)}`;
+
+  const staffUser: AuthUser = {
+    id: userId,
+    email: staffEmail,
+    name: staffName,
+    role,
+    provider: 'email',
+    isDemo: false,
+    createdAt: new Date().toISOString(),
+    isProfileComplete: true,
+  };
+
+  usersDb.set(userId, staffUser);
+  const token = generateToken(staffUser, '14d');
+  return { user: staffUser, token };
+}
+

@@ -17,6 +17,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import { CompanyLogo } from './CompanyLogo';
+import { useAuth } from '../context/AuthContext';
 
 export type NavTab =
   | 'dashboard'
@@ -50,6 +51,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   isDemo,
 }) => {
   const { t } = useTranslation();
+  const { isStaff, staffRole } = useAuth();
 
   const navItems: Array<{
     id: NavTab;
@@ -82,7 +84,17 @@ export const Sidebar: React.FC<SidebarProps> = ({
     { id: 'action-plan', label: t('nav.actionPlan'), icon: CalendarDays },
     { id: 'letter', label: t('nav.letterGenerator'), icon: FileText },
     { id: 'export', label: t('nav.exportReport'), icon: Download },
-    { id: 'admin', label: t('nav.adminPortal'), icon: BarChart3 },
+    ...(isStaff
+      ? [
+          {
+            id: 'admin' as NavTab,
+            label: `Staff CRM (${staffRole || 'Active'})`,
+            icon: BarChart3,
+            badge: staffRole || 'STAFF',
+            badgeColor: 'bg-blue-600 text-white',
+          },
+        ]
+      : []),
     { id: 'settings', label: t('nav.privacy'), icon: Settings },
   ];
 

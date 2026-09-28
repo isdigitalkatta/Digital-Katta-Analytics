@@ -13,6 +13,7 @@ import {
 import { NormalizedCreditReport } from '../../types';
 import { parseCreditReportFile } from '../../utils/reportParser';
 import { LineArtBuildings } from '../LineArtBuildings';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface UploadReportPageProps {
   onReportLoaded: (report: NormalizedCreditReport) => void;
@@ -25,6 +26,7 @@ export const UploadReportPage: React.FC<UploadReportPageProps> = ({
   onSelectDemo,
   currentReport,
 }) => {
+  const { t } = useAppLanguage();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -84,10 +86,10 @@ export const UploadReportPage: React.FC<UploadReportPageProps> = ({
       {/* 1. Header */}
       <div className="border-b border-[#E8ECF0] pb-4">
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#12233F] font-heading tracking-tight">
-          Upload Your CIBIL Report
+          {t('upload.title', 'Upload Your CIBIL Report')}
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 mt-1 font-medium max-w-2xl">
-          Upload your CIBIL report in PDF, HTML or JSON format. We'll analyze it and provide detailed insights with a personalized resolution plan.
+          {t('upload.subtitle', "Upload your CIBIL report in PDF, HTML or JSON format. We'll analyze it and provide detailed insights with a personalized resolution plan.")}
         </p>
       </div>
 
@@ -97,12 +99,12 @@ export const UploadReportPage: React.FC<UploadReportPageProps> = ({
           <div className="flex items-center gap-2.5">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
             <div>
-              <p className="font-bold text-sm">Active Report: {currentReport.personal.name}</p>
+              <p className="font-bold text-sm">{t('upload.activeReport', 'Active Report')}: {currentReport.personal.name}</p>
               <p className="text-slate-600">Score: {currentReport.score.cibilScore} • {currentReport.accounts.length} Accounts Identified</p>
             </div>
           </div>
           <span className="px-3 py-1 rounded-full bg-emerald-200/80 font-bold text-emerald-800">
-            Loaded & Active
+            {t('common.active', 'Active')}
           </span>
         </div>
       )}
@@ -137,7 +139,7 @@ export const UploadReportPage: React.FC<UploadReportPageProps> = ({
 
         {/* Text Instructions */}
         <h2 className="text-base sm:text-lg font-bold text-[#12233F]">
-          Drag & drop your file here
+          {t('upload.dropzoneText', 'Drag & drop your file here')}
         </h2>
         <p className="text-xs sm:text-sm text-slate-400 font-semibold my-2">
           or
@@ -179,7 +181,7 @@ export const UploadReportPage: React.FC<UploadReportPageProps> = ({
       {/* Quick Demo Loader Buttons (For instant testing without finding a PDF) */}
       <div className="bg-white rounded-2xl p-5 border border-[#E8ECF0] shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <p className="text-xs font-bold text-[#12233F]">Don't have a report on hand?</p>
+          <p className="text-xs font-bold text-[#12233F]">{t('upload.orTryDemo', "Don't have a report on hand?")}</p>
           <p className="text-xs text-slate-500">Test the analysis engine with pre-verified mock reports:</p>
         </div>
         <div className="flex items-center gap-2.5">
@@ -188,14 +190,14 @@ export const UploadReportPage: React.FC<UploadReportPageProps> = ({
             onClick={() => onSelectDemo('stressed')}
             className="px-4 py-2 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#FF6A00] border border-orange-200 font-bold text-xs transition-colors cursor-pointer"
           >
-            Stressed Profile (642 Score)
+            {t('upload.stressedDemoBtn', 'Stressed Profile (642 Score)')}
           </button>
           <button
             type="button"
             onClick={() => onSelectDemo('good')}
             className="px-4 py-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-[#16A34A] border border-emerald-200 font-bold text-xs transition-colors cursor-pointer"
           >
-            Prime Profile (785 Score)
+            {t('upload.goodDemoBtn', 'Prime Profile (785 Score)')}
           </button>
         </div>
       </div>

@@ -356,7 +356,7 @@ function getPdfLocalizedContent(lang: string) {
   if (code === 'mr') {
     return {
       langLabel: 'Marathi (MR)',
-      brandTagline: 'Thikan Ek, Suvidha Anek..! (Financial Growth Partner)',
+      brandTagline: 'Theekan Ek, Suvidha Anek..! (Financial Growth Partner)',
       reportTitle: 'AI CIBIL CREDIT HEALTH AUDIT & RECOVERY PLAN',
       regionalAdvisory: 'Maharashtra Regional Desk  |  DPDP Act 2023 Compliant',
       topKeyPointsTitle: 'TOP KEY POINTS TO IMPROVE CREDIT SCORE',
@@ -460,7 +460,7 @@ function getPdfLocalizedContent(lang: string) {
   if (code === 'gu') {
     return {
       langLabel: 'Gujarati (GU)',
-      brandTagline: 'Thikan Ek, Suvidha Anek..! (Financial Growth Partner)',
+      brandTagline: 'Theekan Ek, Suvidha Anek..! (Financial Growth Partner)',
       reportTitle: 'AI CIBIL CREDIT HEALTH AUDIT & RECOVERY PLAN',
       regionalAdvisory: 'Gujarat Regional Advisory Desk  |  DPDP Act 2023 Compliant',
       topKeyPointsTitle: 'TOP KEY POINTS TO IMPROVE CREDIT SCORE',
@@ -511,7 +511,7 @@ function getPdfLocalizedContent(lang: string) {
   // Default / English (EN) & other regional languages
   return {
     langLabel: 'English (EN)',
-    brandTagline: 'Thikan Ek, Suvidha Anek..! (Financial Growth Partner)',
+    brandTagline: 'Theekan Ek, Suvidha Anek..! (Financial Growth Partner)',
     reportTitle: 'AI CIBIL CREDIT HEALTH AUDIT & RECOVERY PLAN',
     regionalAdvisory: 'National Credit Advisory Desk  |  DPDP Act 2023 Compliant',
     topKeyPointsTitle: 'TOP KEY POINTS TO IMPROVE CREDIT SCORE',

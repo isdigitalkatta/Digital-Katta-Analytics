@@ -18,10 +18,13 @@ import {
   HelpCircle,
   Download,
   TrendingUp,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { DigitalKattaBrandLogo } from './DigitalKattaBrandLogo';
 import { useAuth } from '../context/AuthContext';
 import { LanguageSelector } from './LanguageSelector';
+import { AlertSubscriptionModal } from './alerts/AlertSubscriptionModal';
+import { useAppLanguage } from '../hooks/useAppLanguage';
 
 export type DashboardTab =
   | 'home'
@@ -62,27 +65,39 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   isChatOpen = false,
   onDownloadPdf,
 }) => {
-  const { user, logout } = useAuth();
+  const { user, logout, isStaff, staffRole } = useAuth();
+  const { t } = useAppLanguage();
   const userName = user?.name || 'Sagar Dhumal';
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
-  // Primary Navigation Items
+  // Primary Navigation Items - Staff CRM is ONLY visible if user is authorized staff
   const navItems = [
-    { id: 'home' as DashboardTab, label: 'Home', icon: Home },
-    { id: 'my-reports' as DashboardTab, label: 'My Reports', icon: FileText },
-    { id: 'analysis' as DashboardTab, label: 'Analysis', icon: BarChart3 },
-    { id: 'action-plan' as DashboardTab, label: 'Action Plan', icon: ListTodo },
-    { id: 'future-outlook' as DashboardTab, label: 'Future Outlook', icon: TrendingUp },
+    { id: 'home' as DashboardTab, label: t('nav.home', 'Home'), icon: Home },
+    { id: 'my-reports' as DashboardTab, label: t('nav.myReports', 'My Reports'), icon: FileText },
+    { id: 'analysis' as DashboardTab, label: t('nav.analysis', 'Analysis'), icon: BarChart3 },
+    { id: 'action-plan' as DashboardTab, label: t('nav.actionPlan', 'Action Plan'), icon: ListTodo },
+    { id: 'future-outlook' as DashboardTab, label: t('nav.futureOutlook', 'Future Outlook'), icon: TrendingUp },
     {
       id: 'disputes' as DashboardTab,
-      label: 'Dispute Support',
+      label: t('nav.disputeSupport', 'Dispute Support'),
       icon: FileCheck2,
       badge: disputeCount > 0 ? disputeCount : undefined,
     },
-    { id: 'resources' as DashboardTab, label: 'Resources', icon: BookOpen },
-    { id: 'profile' as DashboardTab, label: 'Profile', icon: User },
+    { id: 'resources' as DashboardTab, label: t('nav.resources', 'Resources'), icon: BookOpen },
+    { id: 'profile' as DashboardTab, label: t('nav.profile', 'Profile'), icon: User },
+    ...(isStaff
+      ? [
+          {
+            id: 'admin' as DashboardTab,
+            label: t('nav.staffCrm', `Staff CRM (${staffRole || 'Active'})`),
+            icon: FileSpreadsheet,
+            badge: staffRole ? staffRole.slice(0, 5) : 'STAFF',
+          },
+        ]
+      : []),
   ];
 
   // Helper to determine active status including secondary sub-tabs
@@ -110,7 +125,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               onClick={() => onSelectTab('home')}
               className="text-left cursor-pointer focus:outline-none"
             >
-              <DigitalKattaBrandLogo size="md" showTagline={true} tagline="ठिकाण एक, सुरक्षित अपेक्षा...!" framed={false} />
+              <DigitalKattaBrandLogo size="md" showTagline={true} tagline="ठिकाण एक, सुविधा अनेक..!" subTagline="Theekan Ek, Suvidha Anek" framed={false} />
             </button>
           </div>
 
@@ -149,24 +164,59 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           </nav>
         </div>
 
-        {/* Bottom: Logout pinned with door/exit icon */}
-        <div className="p-5 border-t border-[#E8ECF0] space-y-2">
+        {/* Bottom: CRM Quick Launcher (Staff Only) & Logout pinned */}
+        <div className="p-4 border-t border-[#E8ECF0] space-y-2">
+          {/* CRM Quick Launcher Button - Staff Only */}
+          {isStaff && (
+            <button
+              onClick={() => onSelectTab('admin')}
+              className={`w-full flex items-center justify-between p-2.5 rounded-2xl border transition-all cursor-pointer text-left ${
+                currentTab === 'admin'
+                  ? 'bg-[#1c3859] text-white border-[#1c3859] shadow-xs'
+                  : 'bg-slate-50 hover:bg-blue-50/70 border-slate-200/80 text-slate-800'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
+                  currentTab === 'admin' ? 'bg-white/20 text-white' : 'bg-[#1c3859] text-white'
+                }`}>
+                  <FileSpreadsheet className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className={`text-xs font-bold leading-tight ${currentTab === 'admin' ? 'text-white' : 'text-slate-900'}`}>
+                    Staff CRM
+                  </p>
+                  <p className={`text-[10px] ${currentTab === 'admin' ? 'text-blue-200' : 'text-slate-400'}`}>
+                    {staffRole || 'Active'} Portal
+                  </p>
+                </div>
+              </div>
+              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
+                currentTab === 'admin'
+                  ? 'bg-white/20 text-white'
+                  : 'bg-blue-100 text-blue-900'
+              }`}>
+                {staffRole || 'STAFF'}
+              </span>
+            </button>
+          )}
+
           {onToggleChat && (
             <button
               onClick={onToggleChat}
-              className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-xs font-bold text-slate-700 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors cursor-pointer"
+              className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-700 hover:bg-orange-50 hover:text-[#FF6A00] transition-colors cursor-pointer"
             >
               <Sparkles className="w-4 h-4 text-[#FF6A00]" />
-              <span>Ask AI Credit Bot</span>
+              <span>{t('nav.askAiBot', 'Ask AI Credit Bot')}</span>
             </button>
           )}
 
           <button
             onClick={logout}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
+            className="w-full flex items-center gap-3 px-3.5 py-2 rounded-xl text-xs font-bold text-slate-500 hover:bg-rose-50 hover:text-rose-600 transition-colors cursor-pointer"
           >
-            <LogOut className="w-5 h-5 text-slate-400" />
-            <span>Logout</span>
+            <LogOut className="w-4 h-4 text-slate-400" />
+            <span>{t('nav.signOut', 'Logout')}</span>
           </button>
         </div>
       </aside>
@@ -233,7 +283,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100"
                 >
                   <Download className="w-4 h-4 text-emerald-600" />
-                  <span>Download AI Analysis (PDF)</span>
+                  <span>{t('common.downloadAiPdf', 'Download AI Analysis (PDF)')}</span>
                 </button>
               )}
 
@@ -245,7 +295,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 className="w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-sm font-bold text-rose-600 hover:bg-rose-50"
               >
                 <LogOut className="w-4 h-4" />
-                <span>Logout</span>
+                <span>{t('nav.signOut', 'Logout')}</span>
               </button>
             </div>
           </div>
@@ -270,10 +320,10 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
             <div className="hidden sm:block">
               <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">
-                Digital Katta Portal
+                {t('common.portalTitle', 'Digital Katta Portal')}
               </span>
               <p className="text-sm font-bold text-[#12233F]">
-                {navItems.find((n) => isNavActive(n.id))?.label || 'Dashboard'}
+                {navItems.find((n) => isNavActive(n.id))?.label || t('nav.dashboard', 'Dashboard')}
               </p>
             </div>
           </div>
@@ -291,7 +341,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 title="Download AI CIBIL Analysis (PDF)"
               >
                 <Download className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Download PDF</span>
+                <span>{t('common.download', 'Download PDF')}</span>
               </button>
             )}
 
@@ -302,7 +352,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                 className="hidden sm:flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-orange-50 text-[#FF6A00] text-xs font-bold hover:bg-orange-100 transition-colors cursor-pointer border border-orange-200"
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                <span>AI Assistant</span>
+                <span>{t('nav.askAi', 'AI Assistant')}</span>
               </button>
             )}
 
@@ -319,16 +369,43 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               </button>
 
               {isNotificationsOpen && (
-                <div className="absolute right-0 mt-2 w-72 bg-white rounded-2xl shadow-xl border border-[#E8ECF0] p-4 text-left z-40 animate-in fade-in">
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl shadow-xl border border-[#E8ECF0] p-4 text-left z-40 animate-in fade-in">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-100">
-                    <span className="text-xs font-bold text-[#12233F]">Notifications</span>
-                    <span className="text-[10px] text-[#FF6A00] font-bold">1 New</span>
+                    <span className="text-xs font-bold text-[#12233F]">{t("common.notifications", "Notifications & Bureau Alerts")}</span>
+                    <button
+                      onClick={() => {
+                        setIsNotificationsOpen(false);
+                        setIsAlertModalOpen(true);
+                      }}
+                      className="text-[10px] text-[#FF6A00] font-bold hover:underline cursor-pointer flex items-center gap-1"
+                    >
+                      <Bell className="w-3 h-3" />
+                      <span>{t("common.alertSettings", "Alert Settings")}</span>
+                    </button>
                   </div>
                   <div className="py-2 space-y-2 text-xs">
-                    <div className="p-2 rounded-xl bg-orange-50/70 border border-orange-100">
-                      <p className="font-bold text-[#12233F]">CIBIL Analysis Ready</p>
-                      <p className="text-[11px] text-slate-600">Review your key issues and personalized action plan.</p>
+                    <div className="p-2.5 rounded-xl bg-orange-50/70 border border-orange-100">
+                      <div className="flex items-center justify-between">
+                        <p className="font-bold text-[#12233F]">{t("common.monitoredAlerts", "Monitored Email Alerts")}</p>
+                        <span className="text-[9px] px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 font-bold">{t("common.active", "Active")}</span>
+                      </div>
+                      <p className="text-[11px] text-slate-600 mt-0.5">{t("common.monitoredAlertsDesc", "Tracking credit score shifts and detected dispute outcomes.")}</p>
                     </div>
+                    <div className="p-2.5 rounded-xl bg-slate-50 border border-slate-100">
+                      <p className="font-bold text-[#12233F]">{t("common.analysisReady", "CIBIL Analysis Ready")}</p>
+                      <p className="text-[11px] text-slate-600 mt-0.5">{t("common.analysisReadyDesc", "Review your key issues, trade lines and dispute items.")}</p>
+                    </div>
+                  </div>
+                  <div className="pt-2 border-t border-slate-100">
+                    <button
+                      onClick={() => {
+                        setIsNotificationsOpen(false);
+                        setIsAlertModalOpen(true);
+                      }}
+                      className="w-full py-1.5 px-3 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-800 text-[11px] font-bold transition-colors cursor-pointer text-center"
+                    >
+                      {t("common.configureAlerts", "Configure Score & Dispute Email Alerts")}
+                    </button>
                   </div>
                 </div>
               )}
@@ -360,7 +437,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                     {userName}
                   </p>
                   <p className="text-[10px] font-medium text-slate-400">
-                    Active Member
+                    {t("common.activeMember", "Active Member")}
                   </p>
                 </div>
 
@@ -369,7 +446,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
 
               {/* User Dropdown */}
               {isUserMenuOpen && (
-                <div className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 text-left z-40 animate-in fade-in">
+                <div className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-slate-200 p-2 text-left z-40 animate-in fade-in">
                   <button
                     onClick={() => {
                       onSelectTab('profile');
@@ -378,7 +455,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                     className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                   >
                     <User className="w-4 h-4" />
-                    <span>My Profile</span>
+                    <span>{t("nav.profile", "Profile")}</span>
                   </button>
                   <button
                     onClick={() => {
@@ -388,8 +465,30 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                     className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2"
                   >
                     <FileText className="w-4 h-4" />
-                    <span>My Reports</span>
+                    <span>{t("nav.myReports", "My Reports")}</span>
                   </button>
+                  <button
+                    onClick={() => {
+                      setIsUserMenuOpen(false);
+                      setIsAlertModalOpen(true);
+                    }}
+                    className="w-full px-3 py-2 rounded-xl text-xs font-semibold text-slate-700 hover:bg-slate-50 flex items-center gap-2 cursor-pointer"
+                  >
+                    <Bell className="w-4 h-4 text-[#FF6A00]" />
+                    <span>{t("common.monitoredAlerts", "Email Alerts & Monitoring")}</span>
+                  </button>
+                  {isStaff && (
+                    <button
+                      onClick={() => {
+                        onSelectTab('admin');
+                        setIsUserMenuOpen(false);
+                      }}
+                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors text-[#1c3859] hover:bg-blue-50 font-bold"
+                    >
+                      <FileSpreadsheet className="w-4 h-4 text-[#1c3859]" />
+                      <span>{`Staff CRM (${staffRole || 'Active'})`}</span>
+                    </button>
+                  )}
                   <div className="border-t border-slate-100 my-1" />
                   <button
                     onClick={() => {
@@ -412,6 +511,12 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           {children}
         </main>
       </div>
+
+      {/* Global Alert Subscription Modal */}
+      <AlertSubscriptionModal
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+      />
     </div>
   );
 };

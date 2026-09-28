@@ -39,7 +39,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   isAnalyzing,
 }) => {
   const { t } = useTranslation();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, isProfileComplete, openMandatoryProfileModal } = useAuth();
   return (
     <header className="h-16 bg-white border-b border-[#287975]/30 px-3 md:px-6 flex items-center justify-between z-10 shrink-0 sticky top-0 shadow-xs">
       {/* Left info with Company Logo */}
@@ -163,6 +163,19 @@ export const Navbar: React.FC<NavbarProps> = ({
             title={t('nav.clearReport')}
           >
             <Trash2 className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Mandatory Profile Incomplete Warning CTA */}
+        {isAuthenticated && !user?.isDemo && !isProfileComplete && (
+          <button
+            onClick={openMandatoryProfileModal}
+            className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-600 text-white text-xs font-extrabold shadow-sm cursor-pointer animate-pulse transition-all"
+            title="Action Required: Complete mandatory customer profile for official bureau reporting"
+          >
+            <ShieldCheck className="w-3.5 h-3.5" />
+            <span className="hidden md:inline">Complete Profile</span>
+            <span className="md:hidden">Profile</span>
           </button>
         )}
 

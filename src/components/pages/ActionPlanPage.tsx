@@ -82,6 +82,7 @@ export const ActionPlanPage: React.FC<ActionPlanPageProps> = ({
   useEffect(() => {
     try {
       localStorage.setItem(STRATEGIC_STORAGE_KEY, JSON.stringify(completedSteps));
+      window.dispatchEvent(new Event('cibil_milestone_event'));
     } catch (err) {
       console.warn('Strategic step storage offline notice:', err);
     }

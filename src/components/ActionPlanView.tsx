@@ -48,6 +48,7 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan, onNa
   useEffect(() => {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(completedTasks));
+      window.dispatchEvent(new Event('cibil_milestone_event'));
     } catch (err) {
       console.warn('Action plan persistence offline:', err);
     }

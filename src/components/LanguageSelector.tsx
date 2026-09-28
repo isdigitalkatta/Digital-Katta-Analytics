@@ -15,11 +15,36 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
   onLanguageChange,
   className = '',
 }) => {
-  const { i18n } = useTranslation();
+  const { t, i18n } = useTranslation();
   const [isOpen, setIsOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
 
-  const currentLang = (i18n.language as SupportedLanguage) || 'en';
+  // Sync state directly so button label immediately updates
+  const [currentLang, setCurrentLang] = useState<SupportedLanguage>(
+    () => ((i18n.language as SupportedLanguage) || 'en')
+  );
+
+  useEffect(() => {
+    const handleLanguageChanged = (lng: string) => {
+      setCurrentLang((lng as SupportedLanguage) || 'en');
+    };
+
+    const handleCustomEvent = (e: Event) => {
+      const custom = e as CustomEvent<SupportedLanguage>;
+      if (custom.detail) {
+        setCurrentLang(custom.detail);
+      }
+    };
+
+    i18n.on('languageChanged', handleLanguageChanged);
+    window.addEventListener('digitalkatta_language_changed', handleCustomEvent);
+
+    return () => {
+      i18n.off('languageChanged', handleLanguageChanged);
+      window.removeEventListener('digitalkatta_language_changed', handleCustomEvent);
+    };
+  }, [i18n]);
+
   const currentLangObj = SUPPORTED_LANGUAGES.find((l) => l.code === currentLang) || SUPPORTED_LANGUAGES[0];
 
   useEffect(() => {
@@ -34,6 +59,7 @@ export const LanguageSelector: React.FC<LanguageSelectorProps> = ({
 
   const handleSelect = async (code: SupportedLanguage) => {
     setIsOpen(false);
+    setCurrentLang(code);
     await changeAppLanguage(code);
     if (onLanguageChange) {
       onLanguageChange(code);

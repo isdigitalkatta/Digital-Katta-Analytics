@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   FileCheck2,
@@ -10,8 +10,12 @@ import {
   HelpCircle,
   Building2,
   ArrowRight,
+  Bell,
+  Mail,
+  Zap,
 } from 'lucide-react';
 import { DisputeOpportunity } from '../types';
+import { AlertSubscriptionModal } from './alerts/AlertSubscriptionModal';
 
 interface DisputeOpportunitiesViewProps {
   disputes: DisputeOpportunity[];
@@ -23,6 +27,7 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
   onDraftLetterForDispute,
 }) => {
   const { t } = useTranslation();
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
   const getConfidenceBadge = (conf: string) => {
     switch (conf) {
@@ -68,6 +73,37 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
         <p className="text-blue-800 leading-relaxed">
           Every Indian citizen has the statutory right to have inaccurate credit data rectified within <strong>30 days</strong> of submitting a dispute. Financial institutions that fail to resolve legitimate credit discrepancies within this timeline are liable under the RBI Integrated Ombudsman Scheme.
         </p>
+      </div>
+
+      {/* Dispute Outcome Email Alert Subscription Banner */}
+      <div className="bg-gradient-to-r from-orange-50 via-amber-50 to-orange-50/50 border border-orange-200/90 rounded-2xl p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+        <div className="flex items-start sm:items-center gap-3.5">
+          <div className="w-10 h-10 rounded-xl bg-orange-500/10 border border-orange-400/30 flex items-center justify-center shrink-0">
+            <Bell className="w-5 h-5 text-orange-600" />
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <h4 className="text-sm font-bold text-slate-900">
+                Subscribe to Dispute Outcome Email Alerts
+              </h4>
+              <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-orange-100 text-orange-800 border border-orange-200">
+                Automated Bureau Monitor
+              </span>
+            </div>
+            <p className="text-xs text-slate-600 mt-0.5">
+              Receive immediate email notifications as soon as lenders remove erroneous overdues, generate No Dues Certificates (NOCs), or update your CIBIL trade line.
+            </p>
+          </div>
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setIsAlertModalOpen(true)}
+          className="shrink-0 px-4 py-2 rounded-xl bg-[#12233F] hover:bg-[#1c3859] text-white text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer self-start sm:self-auto"
+        >
+          <Mail className="w-3.5 h-3.5 text-orange-400" />
+          <span>Subscribe to Outcome Alerts</span>
+        </button>
       </div>
 
       {disputes.length === 0 ? (
@@ -181,6 +217,12 @@ export const DisputeOpportunitiesView: React.FC<DisputeOpportunitiesViewProps> =
           </div>
         </div>
       </div>
+
+      <AlertSubscriptionModal
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+        initialTab="preferences"
+      />
     </div>
   );
 };

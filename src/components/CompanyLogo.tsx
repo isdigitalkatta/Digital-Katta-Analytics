@@ -4,6 +4,8 @@ import { DigitalKattaBrandLogo } from './DigitalKattaBrandLogo';
 interface CompanyLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'hero' | 'sidebar';
   showTagline?: boolean;
+  tagline?: string;
+  subTagline?: string;
   className?: string;
   variant?: 'light' | 'dark' | 'transparent';
 }
@@ -11,6 +13,8 @@ interface CompanyLogoProps {
 export const CompanyLogo: React.FC<CompanyLogoProps> = ({
   size = 'md',
   showTagline = true,
+  tagline,
+  subTagline,
   className = '',
   variant = 'transparent',
 }) => {
@@ -19,6 +23,8 @@ export const CompanyLogo: React.FC<CompanyLogoProps> = ({
     <DigitalKattaBrandLogo
       size={mappedSize}
       showTagline={showTagline}
+      tagline={tagline}
+      subTagline={subTagline}
       className={className}
       framed={variant !== 'transparent'}
       variant={variant}

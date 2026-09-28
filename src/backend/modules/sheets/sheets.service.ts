@@ -19,7 +19,7 @@ export interface CustomerData {
   issuesIdentified?: string | null;
   issueResolved?: 'Yes' | 'No' | 'In Progress' | string | null;
   packageName?: string | null;
-  paymentStatus?: 'Unpaid' | 'Paid' | 'Refunded' | string | null;
+  paymentStatus?: 'UNPAID' | 'PENDING_VERIFICATION' | 'PAID' | 'FAILED' | 'REFUNDED' | string | null;
   amountPaid?: number | string | null;
   assignedPartnerAssistant?: string | null;
   assignedCreditExpert?: string | null;
@@ -33,7 +33,7 @@ export interface CustomerData {
 export interface PaymentInfo {
   packageName?: string;
   amountPaid: number;
-  paymentStatus?: 'Paid' | 'Unpaid' | 'Refunded';
+  paymentStatus?: 'PAID' | 'UNPAID' | 'REFUNDED' | string;
   transactionId?: string;
   paidAt?: string | Date;
 }
@@ -146,7 +146,7 @@ function mapCustomerToRow(customer: CustomerData, serialNo: number): (string | n
     customer.issuesIdentified || '',                          // N. Issues Identified (short text)
     customer.issueResolved || 'No',                           // O. Issue Resolved?
     customer.packageName || 'Credit Health Assessment',      // P. Package Name
-    customer.paymentStatus || 'Unpaid',                       // Q. Payment Status
+    customer.paymentStatus ? (customer.paymentStatus as string).toUpperCase() : 'UNPAID', // Q. Payment Status
     customer.amountPaid ? Number(customer.amountPaid) : 0,    // R. Amount Paid (INR)
     customer.assignedPartnerAssistant || 'Digital Katta Desk', // S. Assigned Partner Assistant
     customer.assignedCreditExpert || 'Senior Credit Analyst',  // T. Assigned Credit Expert
@@ -612,13 +612,13 @@ export async function convertLeadToPaidCustomer(
   const paidRecord: CustomerData = {
     ...localRecord,
     ...customer,
-    paymentStatus: payment.paymentStatus || 'Paid',
+    paymentStatus: (payment.paymentStatus || 'PAID').toUpperCase() as any,
     amountPaid: payment.amountPaid,
     packageName: payment.packageName || localRecord.packageName || 'CIBIL Dispute & Resolution Plan',
     caseNumber: caseInfo.caseNumber,
     assignedPartnerAssistant: caseInfo.assignedPartnerAssistant || 'Partner Assistant',
     assignedCreditExpert: caseInfo.assignedCreditExpert || 'Senior Credit Officer',
-    status: caseInfo.status || 'Active Case (Paid)',
+    status: caseInfo.status || 'PAID',
     remarks: caseInfo.remarks || `Converted to Case #${caseInfo.caseNumber} via payment ₹${payment.amountPaid}`,
     updatedAt: new Date(),
   };
@@ -626,7 +626,9 @@ export async function convertLeadToPaidCustomer(
   localPaidCasesDb.set(customerId, paidRecord);
   localCustomersDb.set(customerId, {
     ...localRecord,
-    status: 'Converted to Paid Case',
+    paymentStatus: 'PAID',
+    amountPaid: payment.amountPaid,
+    status: 'PAID',
     remarks: `Converted to Case #${caseInfo.caseNumber}`,
     updatedAt: new Date(),
   });
@@ -999,3 +1001,936 @@ export async function syncNow(): Promise<{
     errors,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Lead Sheet & Paid Customer CRM Data Management Engine
+// ---------------------------------------------------------------------------
+
+export interface LeadQueryParams {
+  search?: string;
+  status?: string;
+  paymentStatus?: string;
+  month?: string;
+  bureau?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+export interface PaidQueryParams {
+  search?: string;
+  status?: string;
+  month?: string;
+  resolved?: string;
+  page?: number;
+  limit?: number;
+  sortBy?: string;
+  sortOrder?: 'asc' | 'desc';
+}
+
+/**
+ * Parses a 24-column Google Sheet row into a structured CustomerData object
+ */
+function mapRowToCustomer(row: any[], tabName: string, rowIndex: number): CustomerData {
+  const dateStr = row[1] || '';
+  const name = row[2] || '';
+  const address = row[3] || '';
+  const pan = row[4] || '';
+  const phone = row[5] || '';
+  const whatsapp = row[6] || '';
+  const email = row[7] || '';
+  const cityState = row[8] || '';
+  const cibilScoreBefore = row[9] ? Number(row[9]) : undefined;
+  const cibilReportBeforeUrl = row[10] || '';
+  const cibilScoreAfter = row[11] ? Number(row[11]) : undefined;
+  const cibilReportAfterUrl = row[12] || '';
+  const issuesIdentified = row[13] || '';
+  const issueResolved = row[14] || 'No';
+  const packageName = row[15] || '';
+  const rawPayment = (row[16] || '').toString().trim().toUpperCase();
+  const paymentStatus =
+    rawPayment === 'PAID'
+      ? 'PAID'
+      : rawPayment === 'REFUNDED'
+      ? 'REFUNDED'
+      : rawPayment.includes('PENDING')
+      ? 'PENDING_VERIFICATION'
+      : 'UNPAID';
+  const amountPaid = row[17] ? Number(row[17]) : 0;
+  const assignedPartnerAssistant = row[18] || '';
+  const assignedCreditExpert = row[19] || '';
+  const caseNumber = row[20] || '';
+  const status = row[21] || 'NEW';
+  const remarks = row[22] || '';
+  const updatedAt = row[23] || '';
+
+  const id = caseNumber
+    ? `case_${caseNumber.toLowerCase()}`
+    : pan
+    ? `pan_${pan.toLowerCase()}`
+    : phone
+    ? `ph_${phone.replace(/\D/g, '')}`
+    : `row_${tabName}_${rowIndex}`;
+
+  return {
+    id,
+    name,
+    address,
+    pan,
+    phone,
+    whatsapp,
+    email,
+    cityState,
+    cibilScoreBefore,
+    cibilReportBeforeUrl,
+    cibilScoreAfter,
+    cibilReportAfterUrl,
+    issuesIdentified,
+    issueResolved,
+    packageName,
+    paymentStatus,
+    amountPaid,
+    assignedPartnerAssistant,
+    assignedCreditExpert,
+    caseNumber,
+    status,
+    remarks,
+    createdAt: dateStr || new Date().toISOString(),
+    updatedAt: updatedAt || new Date().toISOString(),
+  };
+}
+
+/**
+ * Seeds comprehensive realistic borrower leads and paid cases across various
+ * months, statuses, and score categories if CRM storage is currently fresh.
+ */
+export function seedInitialDataIfEmpty() {
+  if (localCustomersDb.size > 0 && localPaidCasesDb.size > 0) return;
+
+  if (localCustomersDb.size === 0) {
+    const sampleLeads: CustomerData[] = [
+      {
+        id: 'lead_sagar_01',
+        name: 'Sagar Dhumal',
+        email: 'sagar.dhumal@example.com',
+        phone: '+91 98201 23456',
+        whatsapp: '+91 98201 23456',
+        pan: 'ABCDE1234F',
+        cityState: 'Mumbai, Maharashtra',
+        cibilScoreBefore: 612,
+        issuesIdentified: '2 Written-off credit card accounts (HDFC, SBI), 1 settled personal loan',
+        issueResolved: 'No',
+        packageName: 'Comprehensive CIBIL Resolution',
+        paymentStatus: 'Unpaid',
+        amountPaid: 0,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'NEW',
+        remarks: 'Borrower requested urgent callback regarding home loan eligibility pre-approval.',
+        createdAt: '2026-09-15T10:30:00.000Z',
+        updatedAt: '2026-09-15T10:30:00.000Z',
+      },
+      {
+        id: 'lead_rajesh_02',
+        name: 'Rajesh Kumar Sharma',
+        email: 'rajesh.sharma@example.com',
+        phone: '+91 98765 43210',
+        whatsapp: '+91 98765 43210',
+        pan: 'BKFPS4567M',
+        cityState: 'Pune, Maharashtra',
+        cibilScoreBefore: 580,
+        issuesIdentified: 'DPD 90+ on HDFC Bank Credit Card, 3 hard enquiries in 30 days',
+        issueResolved: 'No',
+        packageName: 'CIBIL Dispute & Resolution Plan',
+        paymentStatus: 'Unpaid',
+        amountPaid: 0,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'CONTACTED',
+        remarks: 'Initial phone consultation completed. Borrower gathering past settlement letters.',
+        createdAt: '2026-09-10T14:15:00.000Z',
+        updatedAt: '2026-09-12T11:20:00.000Z',
+      },
+      {
+        id: 'lead_priya_03',
+        name: 'Priya Deshpande',
+        email: 'priya.deshpande@sample.in',
+        phone: '+91 98112 34567',
+        whatsapp: '+91 98112 34567',
+        pan: 'CRIPD7891K',
+        cityState: 'Nagpur, Maharashtra',
+        cibilScoreBefore: 645,
+        issuesIdentified: 'Identity mismatch: guarantor commercial vehicle loan wrongly linked to personal PAN',
+        issueResolved: 'No',
+        packageName: 'Identity & Wrong Ownership Correction',
+        paymentStatus: 'Unpaid',
+        amountPaid: 0,
+        assignedPartnerAssistant: 'Siddharth Joshi',
+        assignedCreditExpert: 'Dr. Neha Kulkarni',
+        status: 'DOCUMENTS_PENDING',
+        remarks: 'Awaiting copy of loan sanction letter and PAN verification affidavit from applicant.',
+        createdAt: '2026-08-20T09:00:00.000Z',
+        updatedAt: '2026-08-22T16:45:00.000Z',
+      },
+      {
+        id: 'lead_amit_04',
+        name: 'Amit Kulkarni',
+        email: 'amit.kulkarni@sample.in',
+        phone: '+91 99220 87654',
+        whatsapp: '+91 99220 87654',
+        pan: 'DFGAK2345P',
+        cityState: 'Nashik, Maharashtra',
+        cibilScoreBefore: 590,
+        issuesIdentified: 'Wrong Suit Filed remark by ICICI Bank despite full payment and closure in 2024',
+        issueResolved: 'No',
+        packageName: 'Suit Filed & Derogatory Mark Deletion',
+        paymentStatus: 'Unpaid',
+        amountPaid: 0,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'UNDER_REVIEW',
+        remarks: 'Section 21 legal dispute notice draft prepared under Credit Information Companies Act.',
+        createdAt: '2026-08-05T12:00:00.000Z',
+        updatedAt: '2026-08-18T10:00:00.000Z',
+      },
+      {
+        id: 'lead_sunita_05',
+        name: 'Sunita Gaikwad',
+        email: 'sunita.gaikwad@sample.in',
+        phone: '+91 97654 12398',
+        whatsapp: '+91 97654 12398',
+        pan: 'ERTGS8901L',
+        cityState: 'Kolhapur, Maharashtra',
+        cibilScoreBefore: 625,
+        issuesIdentified: 'Incorrect Settlement status after OTS; official Bank NOC already received',
+        issueResolved: 'No',
+        packageName: 'Settled to Closed Conversion',
+        paymentStatus: 'Unpaid',
+        amountPaid: 0,
+        assignedPartnerAssistant: 'Siddharth Joshi',
+        assignedCreditExpert: 'Dr. Neha Kulkarni',
+        status: 'OFFER_SENT',
+        remarks: 'Resolution retainer package of ₹1,999 offered with guaranteed bureau follow-up.',
+        createdAt: '2026-07-14T11:30:00.000Z',
+        updatedAt: '2026-07-20T15:10:00.000Z',
+      },
+      {
+        id: 'lead_vikram_06',
+        name: 'Vikram Patel',
+        email: 'vikram.patel@sample.in',
+        phone: '+91 98450 67890',
+        whatsapp: '+91 98450 67890',
+        pan: 'GHJVP3456Q',
+        cityState: 'Ahmedabad, Gujarat',
+        cibilScoreBefore: 582,
+        issuesIdentified: 'Two duplicate consumer loan entries with overlapping disbursement dates',
+        issueResolved: 'No',
+        packageName: 'Full Bureau Dispute Service',
+        paymentStatus: 'Paid',
+        amountPaid: 2499,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        caseNumber: 'DK-2026-1042',
+        status: 'PAID',
+        remarks: 'Payment verified via Razorpay; case opened on Paid Customers Sheet.',
+        createdAt: '2026-06-10T14:00:00.000Z',
+        updatedAt: '2026-06-12T16:30:00.000Z',
+      },
+      {
+        id: 'lead_mahesh_07',
+        name: 'Mahesh Shinde',
+        email: 'mahesh.shinde@sample.in',
+        phone: '+91 98190 54321',
+        whatsapp: '+91 98190 54321',
+        pan: 'JKLMS6789R',
+        cityState: 'Thane, Maharashtra',
+        cibilScoreBefore: 775,
+        issuesIdentified: 'Minor spelling mistake in address line',
+        issueResolved: 'No',
+        packageName: 'Credit Report Health Check',
+        paymentStatus: 'Unpaid',
+        amountPaid: 0,
+        assignedPartnerAssistant: 'Siddharth Joshi',
+        assignedCreditExpert: 'Dr. Neha Kulkarni',
+        status: 'DROPPED',
+        remarks: 'Lead dropped: Borrower score already 775 (prime tier); dispute not recommended.',
+        createdAt: '2026-05-18T10:00:00.000Z',
+        updatedAt: '2026-05-19T11:00:00.000Z',
+      },
+    ];
+
+    for (const lead of sampleLeads) {
+      localCustomersDb.set(lead.id, lead);
+    }
+  }
+
+  if (localPaidCasesDb.size === 0) {
+    const samplePaidCases: CustomerData[] = [
+      {
+        id: 'paid_vikram_01',
+        caseNumber: 'DK-2026-1042',
+        name: 'Vikram Patel',
+        email: 'vikram.patel@sample.in',
+        phone: '+91 98450 67890',
+        whatsapp: '+91 98450 67890',
+        pan: 'GHJVP3456Q',
+        cityState: 'Ahmedabad, Gujarat',
+        cibilScoreBefore: 582,
+        cibilReportBeforeUrl: 'https://digitalkatta.com/reports/dk-1042-before.pdf',
+        cibilScoreAfter: 640,
+        cibilReportAfterUrl: '',
+        issuesIdentified: 'Two duplicate consumer loan entries with overlapping dates',
+        issueResolved: 'In Progress',
+        packageName: 'Full Bureau Dispute Service',
+        paymentStatus: 'Paid',
+        amountPaid: 2499,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'ASSIGNED',
+        remarks: 'Assigned to Adv. Ramesh Patil; notice filed with bureau',
+        createdAt: '2026-06-12T16:30:00.000Z',
+        updatedAt: '2026-06-15T11:00:00.000Z',
+      },
+      {
+        id: 'paid_ananya_02',
+        caseNumber: 'DK-2026-1019',
+        name: 'Ananya Iyer',
+        email: 'ananya.iyer@sample.in',
+        phone: '+91 98234 56789',
+        whatsapp: '+91 98234 56789',
+        pan: 'MNPAI1234T',
+        cityState: 'Bengaluru, Karnataka',
+        cibilScoreBefore: 595,
+        cibilReportBeforeUrl: 'https://digitalkatta.com/reports/dk-1019-before.pdf',
+        cibilScoreAfter: 680,
+        cibilReportAfterUrl: '',
+        issuesIdentified: 'Incorrect DPD 90+ reported on closed SBI car loan',
+        issueResolved: 'In Progress',
+        packageName: 'Car Loan Derogatory Fix',
+        paymentStatus: 'Paid',
+        amountPaid: 1999,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'DISPUTE_FILED',
+        remarks: 'Section 21 notice served to SBI Consumer Grievance Desk; 30 day timer running',
+        createdAt: '2026-05-20T10:15:00.000Z',
+        updatedAt: '2026-05-25T14:30:00.000Z',
+      },
+      {
+        id: 'paid_rahul_03',
+        caseNumber: 'DK-2026-1008',
+        name: 'Rahul Verma',
+        email: 'rahul.verma@sample.in',
+        phone: '+91 98101 23456',
+        whatsapp: '+91 98101 23456',
+        pan: 'QWERY5678U',
+        cityState: 'Delhi NCR',
+        cibilScoreBefore: 560,
+        cibilReportBeforeUrl: 'https://digitalkatta.com/reports/dk-1008-before.pdf',
+        cibilScoreAfter: 690,
+        cibilReportAfterUrl: '',
+        issuesIdentified: 'Written-off credit card balance of ₹42,000 wrongly remaining post OTS',
+        issueResolved: 'In Progress',
+        packageName: 'OTS & Settlement Rectification',
+        paymentStatus: 'Paid',
+        amountPaid: 2999,
+        assignedPartnerAssistant: 'Siddharth Joshi',
+        assignedCreditExpert: 'Dr. Neha Kulkarni',
+        status: 'IN_FOLLOWUP',
+        remarks: 'Bank accepted bank statement verification; awaiting bureau tape refresh',
+        createdAt: '2026-04-10T12:00:00.000Z',
+        updatedAt: '2026-04-28T16:00:00.000Z',
+      },
+      {
+        id: 'paid_kavita_04',
+        caseNumber: 'DK-2026-0985',
+        name: 'Kavita Nair',
+        email: 'kavita.nair@sample.in',
+        phone: '+91 98330 98765',
+        whatsapp: '+91 98330 98765',
+        pan: 'TYUKN9012V',
+        cityState: 'Kochi, Kerala',
+        cibilScoreBefore: 540,
+        cibilReportBeforeUrl: 'https://digitalkatta.com/reports/dk-0985-before.pdf',
+        cibilScoreAfter: 742,
+        cibilReportAfterUrl: 'https://digitalkatta.com/reports/dk-0985-noc-verified.pdf',
+        issuesIdentified: 'Willful default misclassification on Kotak personal loan',
+        issueResolved: 'Yes',
+        packageName: 'High-Impact Legal Bureau Dispute',
+        paymentStatus: 'Paid',
+        amountPaid: 3499,
+        assignedPartnerAssistant: 'Pooja Deshmukh',
+        assignedCreditExpert: 'Adv. Ramesh Patil',
+        status: 'RESOLVED',
+        remarks: 'Kotak Bank corrected bureau tape. Derogatory mark completely expunged. Score jumped to 742.',
+        createdAt: '2026-03-01T09:00:00.000Z',
+        updatedAt: '2026-03-28T15:00:00.000Z',
+      },
+      {
+        id: 'paid_deepak_05',
+        caseNumber: 'DK-2026-0952',
+        name: 'Deepak Sawant',
+        email: 'deepak.sawant@sample.in',
+        phone: '+91 98920 11223',
+        whatsapp: '+91 98920 11223',
+        pan: 'OPIDS3456W',
+        cityState: 'Pune, Maharashtra',
+        cibilScoreBefore: 610,
+        cibilReportBeforeUrl: 'https://digitalkatta.com/reports/dk-0952-before.pdf',
+        cibilScoreAfter: 768,
+        cibilReportAfterUrl: 'https://digitalkatta.com/reports/dk-0952-noc.pdf',
+        issuesIdentified: 'Settled remark on Bajaj Finserv EMI card',
+        issueResolved: 'Yes',
+        packageName: 'Comprehensive CIBIL Resolution',
+        paymentStatus: 'Paid',
+        amountPaid: 1999,
+        assignedPartnerAssistant: 'Siddharth Joshi',
+        assignedCreditExpert: 'Dr. Neha Kulkarni',
+        status: 'NOC_ISSUED',
+        remarks: 'Official Bank NOC issued. CIBIL score increased from 610 to 768.',
+        createdAt: '2026-02-15T11:00:00.000Z',
+        updatedAt: '2026-02-28T18:00:00.000Z',
+      },
+    ];
+
+    for (const paidCase of samplePaidCases) {
+      localPaidCasesDb.set(paidCase.id, paidCase);
+    }
+  }
+}
+
+/**
+ * Retrieve paginated, filtered, and searchable leads from Google Sheets (or fallback local CRM)
+ */
+export async function getLeads(params: LeadQueryParams = {}): Promise<{
+  leads: CustomerData[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  summary: {
+    totalLeads: number;
+    newLeads: number;
+    inProgressLeads: number;
+    convertedLeads: number;
+    paidLeads?: number;
+    unpaidLeads?: number;
+    conversionRate: string;
+  };
+}> {
+  seedInitialDataIfEmpty();
+
+  const leadsMap = new Map<string, CustomerData>();
+  for (const [id, lead] of localCustomersDb.entries()) {
+    leadsMap.set(id, { ...lead });
+  }
+
+  // If Google Sheets is configured, fetch real sheet rows
+  const { sheets, configured } = getGoogleClients();
+  const { leadsId } = getActiveSpreadsheetIds();
+  if (configured && sheets && leadsId) {
+    try {
+      const tabsToFetch =
+        params.month && params.month !== 'ALL' && params.month !== 'all'
+          ? [params.month]
+          : MONTH_TABS;
+
+      const ranges = tabsToFetch.map((tab) => `${tab}!A2:X`);
+      const batchRes = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId: leadsId,
+        ranges,
+      });
+
+      const valueRanges = batchRes.data.valueRanges || [];
+      for (const vr of valueRanges) {
+        const tabName = (vr.range?.split('!')[0] || '').replace(/'/g, '');
+        const rows = vr.values || [];
+        for (let idx = 0; idx < rows.length; idx++) {
+          const row = rows[idx];
+          if (!row || row.length === 0 || !row[2]) continue;
+          const parsed = mapRowToCustomer(row, tabName, idx + 2);
+          leadsMap.set(parsed.id, parsed);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Google Sheets Lead Engine] Read notice:', err?.message || err);
+    }
+  }
+
+  let allLeads = Array.from(leadsMap.values());
+
+  // Calculate summary metrics before filters
+  const totalLeadsCount = allLeads.length;
+  const newLeadsCount = allLeads.filter(
+    (l) => (l.status || '').toUpperCase() === 'NEW' || (l.status || '').toLowerCase().includes('active')
+  ).length;
+  const convertedLeadsCount = allLeads.filter(
+    (l) =>
+      (l.status || '').toUpperCase() === 'PAID' ||
+      (l.status || '').toLowerCase().includes('paid') ||
+      (l.status || '').toLowerCase().includes('convert') ||
+      (l.paymentStatus || '').toUpperCase() === 'PAID'
+  ).length;
+  const paidLeadsCount = allLeads.filter(
+    (l) => (l.paymentStatus || '').toUpperCase() === 'PAID' || (l.status || '').toUpperCase() === 'PAID'
+  ).length;
+  const unpaidLeadsCount = allLeads.filter(
+    (l) => (l.paymentStatus || 'UNPAID').toUpperCase() === 'UNPAID'
+  ).length;
+  const inProgressLeadsCount = Math.max(0, totalLeadsCount - newLeadsCount - convertedLeadsCount);
+  const conversionRate = totalLeadsCount > 0 ? `${((convertedLeadsCount / totalLeadsCount) * 100).toFixed(1)}%` : '0%';
+
+  // Search query filter
+  if (params.search && params.search.trim()) {
+    const q = params.search.trim().toLowerCase();
+    allLeads = allLeads.filter((l) => {
+      const name = (l.name || '').toLowerCase();
+      const phone = (l.phone || '').toLowerCase();
+      const whatsapp = (l.whatsapp || '').toLowerCase();
+      const email = (l.email || '').toLowerCase();
+      const pan = (l.pan || '').toLowerCase();
+      const city = (l.cityState || '').toLowerCase();
+      const notes = (l.remarks || '').toLowerCase();
+      return (
+        name.includes(q) ||
+        phone.includes(q) ||
+        whatsapp.includes(q) ||
+        email.includes(q) ||
+        pan.includes(q) ||
+        city.includes(q) ||
+        notes.includes(q)
+      );
+    });
+  }
+
+  // Status filter
+  if (params.status && params.status !== 'ALL' && params.status !== 'all') {
+    const targetStatus = params.status.trim().toUpperCase();
+    allLeads = allLeads.filter((l) => {
+      const s = (l.status || '').toUpperCase();
+      if (targetStatus === 'PAID') {
+        return s === 'PAID' || s.includes('CONVERT') || (l.paymentStatus || '').toUpperCase() === 'PAID';
+      }
+      return s === targetStatus || s.includes(targetStatus);
+    });
+  }
+
+  // Payment Status filter (UNPAID | PAID | PENDING_VERIFICATION | REFUNDED)
+  if (params.paymentStatus && params.paymentStatus !== 'ALL' && params.paymentStatus !== 'all') {
+    const targetPay = params.paymentStatus.trim().toUpperCase();
+    allLeads = allLeads.filter((l) => {
+      const ps = (l.paymentStatus || 'UNPAID').toUpperCase();
+      return ps === targetPay;
+    });
+  }
+
+  // Month tab filter
+  if (params.month && params.month !== 'ALL' && params.month !== 'all') {
+    const targetMonth = params.month.trim().toLowerCase();
+    allLeads = allLeads.filter((l) => {
+      const tab = getMonthTabName(l.createdAt).toLowerCase();
+      return tab === targetMonth;
+    });
+  }
+
+  // Bureau format filter (if specified)
+  if (params.bureau && params.bureau !== 'ALL' && params.bureau !== 'all') {
+    const b = params.bureau.trim().toLowerCase();
+    allLeads = allLeads.filter((l) => {
+      const issues = (l.issuesIdentified || '').toLowerCase();
+      const pkg = (l.packageName || '').toLowerCase();
+      return issues.includes(b) || pkg.includes(b);
+    });
+  }
+
+  // Sorting
+  const sortBy = params.sortBy || 'createdAt';
+  const sortOrder = params.sortOrder === 'asc' ? 1 : -1;
+  allLeads.sort((a: any, b: any) => {
+    let valA = a[sortBy] ?? '';
+    let valB = b[sortBy] ?? '';
+    if (sortBy === 'createdAt' || sortBy === 'updatedAt') {
+      const timeA = new Date(valA).getTime() || 0;
+      const timeB = new Date(valB).getTime() || 0;
+      return (timeA - timeB) * sortOrder;
+    }
+    if (sortBy === 'cibilScoreBefore') {
+      return ((Number(valA) || 0) - (Number(valB) || 0)) * sortOrder;
+    }
+    return String(valA).localeCompare(String(valB)) * sortOrder;
+  });
+
+  // Pagination
+  const total = allLeads.length;
+  const page = Math.max(1, Number(params.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(params.limit) || 10));
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+  const paginatedLeads = allLeads.slice(startIndex, startIndex + limit);
+
+  return {
+    leads: paginatedLeads,
+    total,
+    page,
+    limit,
+    totalPages,
+    summary: {
+      totalLeads: totalLeadsCount,
+      newLeads: newLeadsCount,
+      inProgressLeads: inProgressLeadsCount,
+      convertedLeads: convertedLeadsCount,
+      paidLeads: paidLeadsCount,
+      unpaidLeads: unpaidLeadsCount,
+      conversionRate,
+    },
+  };
+}
+
+/**
+ * Retrieve paginated, filtered, and searchable paid customer cases from Google Sheets (or fallback local CRM)
+ */
+export async function getPaidCustomers(params: PaidQueryParams = {}): Promise<{
+  paidCases: CustomerData[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  summary: {
+    totalCases: number;
+    resolvedCases: number;
+    totalRevenue: number;
+    resolutionRate: string;
+    avgScoreDelta: number;
+  };
+}> {
+  seedInitialDataIfEmpty();
+
+  const casesMap = new Map<string, CustomerData>();
+  for (const [id, paidCase] of localPaidCasesDb.entries()) {
+    casesMap.set(id, { ...paidCase });
+  }
+
+  // If Google Sheets is configured, fetch real sheet rows from Paid Customers workbook
+  const { sheets, configured } = getGoogleClients();
+  const { paidId } = getActiveSpreadsheetIds();
+  if (configured && sheets && paidId) {
+    try {
+      const tabsToFetch =
+        params.month && params.month !== 'ALL' && params.month !== 'all'
+          ? [params.month]
+          : MONTH_TABS;
+
+      const ranges = tabsToFetch.map((tab) => `${tab}!A2:X`);
+      const batchRes = await sheets.spreadsheets.values.batchGet({
+        spreadsheetId: paidId,
+        ranges,
+      });
+
+      const valueRanges = batchRes.data.valueRanges || [];
+      for (const vr of valueRanges) {
+        const tabName = (vr.range?.split('!')[0] || '').replace(/'/g, '');
+        const rows = vr.values || [];
+        for (let idx = 0; idx < rows.length; idx++) {
+          const row = rows[idx];
+          if (!row || row.length === 0 || !row[2]) continue;
+          const parsed = mapRowToCustomer(row, tabName, idx + 2);
+          casesMap.set(parsed.id, parsed);
+        }
+      }
+    } catch (err: any) {
+      console.warn('[Google Sheets Paid Engine] Read notice:', err?.message || err);
+    }
+  }
+
+  let allCases = Array.from(casesMap.values());
+
+  // Metrics before filters
+  const totalCasesCount = allCases.length;
+  const resolvedCasesCount = allCases.filter(
+    (c) =>
+      (c.issueResolved || '').toLowerCase() === 'yes' ||
+      (c.status || '').toUpperCase() === 'RESOLVED' ||
+      (c.status || '').toUpperCase() === 'NOC_ISSUED'
+  ).length;
+
+  let totalRevenue = 0;
+  let totalScoreDelta = 0;
+  let scoreDeltaCount = 0;
+
+  for (const c of allCases) {
+    totalRevenue += Number(c.amountPaid) || 0;
+    if (c.cibilScoreBefore && c.cibilScoreAfter) {
+      const delta = Number(c.cibilScoreAfter) - Number(c.cibilScoreBefore);
+      if (!isNaN(delta)) {
+        totalScoreDelta += delta;
+        scoreDeltaCount++;
+      }
+    }
+  }
+
+  const resolutionRate = totalCasesCount > 0 ? `${((resolvedCasesCount / totalCasesCount) * 100).toFixed(1)}%` : '0%';
+  const avgScoreDelta = scoreDeltaCount > 0 ? Math.round(totalScoreDelta / scoreDeltaCount) : 0;
+
+  // Search filter
+  if (params.search && params.search.trim()) {
+    const q = params.search.trim().toLowerCase();
+    allCases = allCases.filter((c) => {
+      const caseNum = (c.caseNumber || '').toLowerCase();
+      const name = (c.name || '').toLowerCase();
+      const phone = (c.phone || '').toLowerCase();
+      const email = (c.email || '').toLowerCase();
+      const pan = (c.pan || '').toLowerCase();
+      const expert = (c.assignedCreditExpert || '').toLowerCase();
+      const assistant = (c.assignedPartnerAssistant || '').toLowerCase();
+      const remarks = (c.remarks || '').toLowerCase();
+      return (
+        caseNum.includes(q) ||
+        name.includes(q) ||
+        phone.includes(q) ||
+        email.includes(q) ||
+        pan.includes(q) ||
+        expert.includes(q) ||
+        assistant.includes(q) ||
+        remarks.includes(q)
+      );
+    });
+  }
+
+  // Status filter
+  if (params.status && params.status !== 'ALL' && params.status !== 'all') {
+    const targetStatus = params.status.trim().toUpperCase();
+    allCases = allCases.filter((c) => {
+      const s = (c.status || '').toUpperCase();
+      return s === targetStatus || s.includes(targetStatus);
+    });
+  }
+
+  // Resolution status filter (Yes, No, In Progress)
+  if (params.resolved && params.resolved !== 'ALL' && params.resolved !== 'all') {
+    const targetRes = params.resolved.trim().toLowerCase();
+    allCases = allCases.filter((c) => (c.issueResolved || 'no').toLowerCase() === targetRes);
+  }
+
+  // Month tab filter
+  if (params.month && params.month !== 'ALL' && params.month !== 'all') {
+    const targetMonth = params.month.trim().toLowerCase();
+    allCases = allCases.filter((c) => {
+      const tab = getMonthTabName(c.createdAt).toLowerCase();
+      return tab === targetMonth;
+    });
+  }
+
+  // Sorting
+  const sortBy = params.sortBy || 'createdAt';
+  const sortOrder = params.sortOrder === 'asc' ? 1 : -1;
+  allCases.sort((a: any, b: any) => {
+    let valA = a[sortBy] ?? '';
+    let valB = b[sortBy] ?? '';
+    if (sortBy === 'createdAt' || sortBy === 'updatedAt') {
+      const timeA = new Date(valA).getTime() || 0;
+      const timeB = new Date(valB).getTime() || 0;
+      return (timeA - timeB) * sortOrder;
+    }
+    if (sortBy === 'amountPaid' || sortBy === 'cibilScoreBefore' || sortBy === 'cibilScoreAfter') {
+      return ((Number(valA) || 0) - (Number(valB) || 0)) * sortOrder;
+    }
+    return String(valA).localeCompare(String(valB)) * sortOrder;
+  });
+
+  // Pagination
+  const total = allCases.length;
+  const page = Math.max(1, Number(params.page) || 1);
+  const limit = Math.max(1, Math.min(100, Number(params.limit) || 10));
+  const totalPages = Math.max(1, Math.ceil(total / limit));
+  const startIndex = (page - 1) * limit;
+  const paginatedCases = allCases.slice(startIndex, startIndex + limit);
+
+  return {
+    paidCases: paginatedCases,
+    total,
+    page,
+    limit,
+    totalPages,
+    summary: {
+      totalCases: totalCasesCount,
+      resolvedCases: resolvedCasesCount,
+      totalRevenue,
+      resolutionRate,
+      avgScoreDelta,
+    },
+  };
+}
+
+/**
+ * Update pipeline status of a Lead (NEW → CONTACTED → DOCUMENTS_PENDING → UNDER_REVIEW → OFFER_SENT → PAID → DROPPED)
+ */
+export async function updateLeadStatus(
+  leadId: string,
+  status: string,
+  remarks?: string,
+  assignedPartnerAssistant?: string,
+  assignedCreditExpert?: string,
+  paymentStatus?: string,
+  amountPaid?: number | string
+): Promise<{ success: boolean; lead?: CustomerData; message?: string }> {
+  seedInitialDataIfEmpty();
+
+  let existing = localCustomersDb.get(leadId);
+  if (!existing) {
+    for (const [id, lead] of localCustomersDb.entries()) {
+      if (id === leadId || lead.email === leadId || lead.phone === leadId || lead.pan === leadId) {
+        existing = lead;
+        leadId = id;
+        break;
+      }
+    }
+  }
+
+  if (!existing) {
+    return { success: false, message: `Lead '${leadId}' not found in registry.` };
+  }
+
+  existing.status = status;
+  if (remarks !== undefined) existing.remarks = remarks;
+  if (assignedPartnerAssistant) existing.assignedPartnerAssistant = assignedPartnerAssistant;
+  if (assignedCreditExpert) existing.assignedCreditExpert = assignedCreditExpert;
+  if (paymentStatus) {
+    existing.paymentStatus = paymentStatus.toUpperCase() as any;
+  } else if (status === 'PAID') {
+    existing.paymentStatus = 'PAID';
+  }
+  if (amountPaid !== undefined && amountPaid !== null) {
+    existing.amountPaid = Number(amountPaid);
+  }
+  existing.updatedAt = new Date().toISOString();
+  localCustomersDb.set(leadId, existing);
+
+  // Sync to Google Sheets if configured
+  const { sheets, configured } = getGoogleClients();
+  const { leadsId } = getActiveSpreadsheetIds();
+  if (configured && sheets && leadsId) {
+    try {
+      const found = await findCustomerRowInWorkbook(leadsId, existing);
+      if (found) {
+        // Update Column Q (Payment Status) through Column X (Last Updated At)
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: leadsId,
+          range: `${found.tab}!Q${found.rowIndex}:X${found.rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [
+              [
+                existing.paymentStatus || (status === 'PAID' ? 'PAID' : 'UNPAID'), // Q. Payment Status
+                existing.amountPaid ? Number(existing.amountPaid) : 0,            // R. Amount Paid
+                existing.assignedPartnerAssistant || '',                         // S. Assigned Partner Assistant
+                existing.assignedCreditExpert || '',                             // T. Assigned Credit Expert
+                existing.caseNumber || '',                                        // U. Case Number
+                status,                                                          // V. Pipeline Status
+                existing.remarks || '',                                          // W. Remarks
+                formatTimestamp(new Date()),                                     // X. Last Updated At
+              ],
+            ],
+          },
+        });
+      }
+    } catch (e: any) {
+      console.warn('[Google Sheets Lead Engine] Status update notice:', e?.message || e);
+    }
+  }
+
+  return { success: true, lead: existing, message: `Lead status updated to ${status}` };
+}
+
+/**
+ * Update case status of a Paid Customer (PAID → ASSIGNED → DISPUTE_FILED → IN_FOLLOWUP → RESOLVED → NOC_ISSUED → CLOSED)
+ */
+export async function updatePaidCaseStatus(
+  caseNumber: string,
+  status: string,
+  remarks?: string
+): Promise<{ success: boolean; paidCase?: CustomerData; message?: string }> {
+  seedInitialDataIfEmpty();
+
+  let existing: CustomerData | undefined;
+  let caseKey = '';
+  for (const [id, c] of localPaidCasesDb.entries()) {
+    if (c.caseNumber === caseNumber || id === caseNumber) {
+      existing = c;
+      caseKey = id;
+      break;
+    }
+  }
+
+  if (!existing) {
+    return { success: false, message: `Paid case '${caseNumber}' not found.` };
+  }
+
+  existing.status = status;
+  if (remarks !== undefined) existing.remarks = remarks;
+  existing.updatedAt = new Date().toISOString();
+  localPaidCasesDb.set(caseKey, existing);
+
+  // Update sheet if configured
+  const { sheets, configured } = getGoogleClients();
+  const { paidId } = getActiveSpreadsheetIds();
+  if (configured && sheets && paidId) {
+    try {
+      const found = await findCustomerRowInWorkbook(paidId, existing);
+      if (found) {
+        await sheets.spreadsheets.values.update({
+          spreadsheetId: paidId,
+          range: `${found.tab}!V${found.rowIndex}:X${found.rowIndex}`,
+          valueInputOption: 'USER_ENTERED',
+          requestBody: {
+            values: [[status, existing.remarks || '', formatTimestamp(new Date())]],
+          },
+        });
+      }
+    } catch (e: any) {
+      console.warn('[Google Sheets Paid Engine] Status update notice:', e?.message || e);
+    }
+  }
+
+  return { success: true, paidCase: existing, message: `Case status updated to ${status}` };
+}
+
+/**
+ * Add a new manual prospective lead to the CRM registry and Google Sheets
+ */
+export async function addNewLead(data: Partial<CustomerData>): Promise<{ success: boolean; lead: CustomerData; message: string }> {
+  seedInitialDataIfEmpty();
+
+  const id = data.id || `lead_manual_${Date.now()}`;
+  const newLead: CustomerData = {
+    id,
+    name: (data.name || 'New Prospective Borrower').trim(),
+    email: data.email?.trim().toLowerCase() || '',
+    phone: data.phone?.trim() || '',
+    whatsapp: data.whatsapp?.trim() || data.phone?.trim() || '',
+    pan: data.pan?.trim().toUpperCase() || '',
+    cityState: data.cityState?.trim() || 'Maharashtra, India',
+    cibilScoreBefore: data.cibilScoreBefore ? Number(data.cibilScoreBefore) : 600,
+    issuesIdentified: data.issuesIdentified?.trim() || 'Pending initial bureau analysis',
+    issueResolved: 'No',
+    packageName: data.packageName || 'Credit Health Assessment',
+    paymentStatus: 'Unpaid',
+    amountPaid: 0,
+    assignedPartnerAssistant: data.assignedPartnerAssistant || 'Pooja Deshmukh',
+    assignedCreditExpert: data.assignedCreditExpert || 'Adv. Ramesh Patil',
+    status: data.status || 'NEW',
+    remarks: data.remarks || 'Manually registered lead via Admin CRM Desk',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+  };
+
+  localCustomersDb.set(id, newLead);
+
+  // Upsert to Google Sheets if configured
+  await upsertLead(newLead).catch((err) => {
+    console.warn('[Google Sheets Lead Engine] Manual lead insert notice:', err?.message || err);
+  });
+
+  return { success: true, lead: newLead, message: 'New prospective lead created successfully.' };
+}
+

@@ -168,6 +168,7 @@ ${borrowerName}
       localStorage.setItem('cibil_first_dispute_filed', 'true');
       const count = parseInt(localStorage.getItem('cibil_disputes_filed_count') || '0', 10);
       localStorage.setItem('cibil_disputes_filed_count', (count + 1).toString());
+      window.dispatchEvent(new Event('cibil_milestone_event'));
     } catch {}
   };
 

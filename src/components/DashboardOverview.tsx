@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ShieldAlert,
@@ -12,6 +12,8 @@ import {
   Zap,
   Info,
   Layers,
+  Bell,
+  Mail,
 } from 'lucide-react';
 import { AIAnalysisResult, NormalizedCreditReport } from '../types';
 import { ScoreGauge } from './ScoreGauge';
@@ -19,6 +21,7 @@ import { formatIndianCurrency } from '../utils/normalizer';
 import { NavTab } from './Sidebar';
 import { LegalDisclaimer } from './LegalDisclaimer';
 import { MilestoneRewards } from './MilestoneRewards';
+import { AlertSubscriptionModal } from './alerts/AlertSubscriptionModal';
 
 interface DashboardOverviewProps {
   report: NormalizedCreditReport;
@@ -34,6 +37,7 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 }) => {
   const { t } = useTranslation();
   const { summary, score } = report;
+  const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
 
   return (
     <div className="space-y-6 pb-12">
@@ -97,6 +101,15 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
             <span className="text-slate-500">{t('dashboard.healthIndex', 'Overall Credit Health')}:</span>
             <span className="font-bold text-slate-800">{analysis.creditHealth.healthScore100} / 100</span>
           </div>
+
+          <button
+            type="button"
+            onClick={() => setIsAlertModalOpen(true)}
+            className="mt-3 w-full py-2 px-3 rounded-xl bg-orange-50 hover:bg-orange-100 text-[#FF6A00] border border-orange-200 text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+          >
+            <Bell className="w-3.5 h-3.5" />
+            <span>Score Change Email Alerts</span>
+          </button>
         </div>
 
         {/* 6 Key Financial Metrics */}
@@ -430,6 +443,13 @@ export const DashboardOverview: React.FC<DashboardOverviewProps> = ({
 
       {/* Statutory Legal & DPDP Act Compliance Card */}
       <LegalDisclaimer variant="card" />
+
+      {/* Credit Score Alert Subscription Modal */}
+      <AlertSubscriptionModal
+        isOpen={isAlertModalOpen}
+        onClose={() => setIsAlertModalOpen(false)}
+        initialTab="preferences"
+      />
     </div>
   );
 };

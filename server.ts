@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'path';
 import { GoogleGenAI } from '@google/genai';
 import { AIAnalysisSchema } from './src/utils/aiSchema.js';
+import { normalizeExtractedReport, extractReportDeterministic } from './server/reportNormalizer.js';
 import {
   applySecurityHeaders,
   validateEnvironment,
@@ -15,7 +16,27 @@ import {
   generateOtpForPhone,
   verifyOtpForPhone,
   verifyToken,
+  generateToken,
+  updateUserProfileInAuth,
+  authenticateAsStaff,
+  STAFF_MAP,
+  isStaffUser,
+  StaffRole,
+  AuthUser,
 } from './server/auth.js';
+import {
+  CustomerProfile,
+  getProfileByUserId,
+  saveProfile,
+  isProfileComplete,
+} from './server/profileStore.js';
+import {
+  getSubscription,
+  updateSubscription,
+  getAlertEvents,
+  sendTestAlert,
+  simulateEvent,
+} from './server/alertSubscriptionStore.js';
 import {
   generalLimiter,
   aiAnalyzeLimiter,
@@ -87,15 +108,15 @@ function getGeminiClient(): GoogleGenAI | null {
 
 // Helper to normalize Gemini model name from env or config
 function normalizeModelName(raw?: string): string {
-  if (!raw) return 'gemini-3.1-flash-lite';
+  if (!raw) return 'gemini-3.8-flash';
   const clean = raw.trim().replace(/^models\//, '');
   if (clean === '3.8' || clean === 'gemini-3.8') return 'gemini-3.8-flash';
-  if (clean === '3.1' || clean === '3.1-flash-lite' || clean === 'flash-lite') return 'gemini-3.1-flash-lite';
   if (clean === 'flash' || clean === 'gemini-flash') return 'gemini-flash-latest';
+  if (clean === '3.1' || clean === '3.1-flash-lite' || clean === 'flash-lite') return 'gemini-3.1-flash-lite';
   return clean;
 }
 
-// Resilient helper with multi-model fallback and backoff for temporary capacity spikes (e.g. 503/429)
+// Resilient helper with multi-model fallback and backoff for temporary capacity spikes (e.g. 503/429/quota)
 async function generateGeminiContentWithFallback(
   ai: GoogleGenAI,
   options: {
@@ -106,13 +127,12 @@ async function generateGeminiContentWithFallback(
   }
 ): Promise<{ text: string; modelUsed: string }> {
   const configured = normalizeModelName(process.env.GEMINI_MODEL);
-  // Place gemini-3.1-flash-lite at top of candidate list for fast, guaranteed availability
-  // without encountering the temporary 503 capacity spikes affecting gemini-3.8-flash
   const candidateModels = [
-    'gemini-3.1-flash-lite',
     configured,
-    'gemini-flash-latest',
+    'gemini-2.5-flash',
     'gemini-3.8-flash',
+    'gemini-flash-latest',
+    'gemini-3.1-flash-lite',
   ].filter((m, idx, arr) => Boolean(m) && arr.indexOf(m) === idx);
 
   let lastError: any = null;
@@ -130,7 +150,7 @@ async function generateGeminiContentWithFallback(
         config.responseMimeType = options.responseMimeType;
       }
 
-      // Safeguard against stuck calls with a 12-second per-model timeout
+      // Safeguard against stuck calls with a 35-second per-model timeout
       const responsePromise = ai.models.generateContent({
         model,
         contents: options.contents,
@@ -138,7 +158,7 @@ async function generateGeminiContentWithFallback(
       });
 
       const timeoutPromise = new Promise<never>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout calling model ${model}`)), 12000)
+        setTimeout(() => reject(new Error(`Timeout calling model ${model}`)), 35000)
       );
 
       const response = await Promise.race([responsePromise, timeoutPromise]);
@@ -152,10 +172,14 @@ async function generateGeminiContentWithFallback(
       const isTransient =
         err?.status === 503 ||
         err?.code === 503 ||
+        err?.status === 429 ||
+        err?.code === 429 ||
         errMsg.includes('503') ||
+        errMsg.includes('429') ||
         errMsg.includes('high demand') ||
         errMsg.includes('UNAVAILABLE') ||
-        err?.status === 429;
+        errMsg.includes('resource_exhausted') ||
+        errMsg.includes('quota');
 
       // Brief backoff before next model candidate on capacity spikes
       if (isTransient && i < candidateModels.length - 1) {
@@ -254,6 +278,255 @@ app.post('/api/auth/login', async (req, res) => {
     message: 'Authentication successful. Synced with Leads spreadsheet.',
   });
 });
+
+// Helper for HTML escaping
+function escapeHtml(str: string): string {
+  return String(str || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+// Google OAuth URL generation endpoint
+app.get('/api/auth/google/url', (req, res) => {
+  const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
+  const rawRedirectUri = (req.query.redirect_uri as string) || '';
+
+  const appUrl = (process.env.APP_URL || '').replace(/\/$/, '');
+  const host = req.get('host') || 'localhost:3000';
+  const protocol = req.protocol || 'https';
+  const dynamicCallback = `${protocol}://${host}/api/auth/google/callback`;
+  const defaultCallback = appUrl ? `${appUrl}/api/auth/google/callback` : dynamicCallback;
+  const redirectUri = rawRedirectUri || defaultCallback;
+
+  if (clientId) {
+    const params = new URLSearchParams({
+      client_id: clientId,
+      redirect_uri: redirectUri,
+      response_type: 'code',
+      scope: 'openid email profile',
+      access_type: 'online',
+      prompt: 'select_account',
+    });
+    return res.json({
+      url: `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`,
+      configured: true,
+      redirectUri,
+    });
+  }
+
+  // When client ID is not yet provided, redirect to Google Accounts chooser so user signs into Google
+  const fallbackUrl = `https://accounts.google.com/AccountChooser?service=lso&continue=${encodeURIComponent(
+    redirectUri
+  )}`;
+
+  return res.json({
+    url: fallbackUrl,
+    configured: false,
+    redirectUri,
+    notice: 'GOOGLE_CLIENT_ID is not configured yet. Configure GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET in environment variables for automated Google OAuth token exchange.',
+  });
+});
+
+// Google OAuth Callback Handler
+app.get(
+  ['/api/auth/google/callback', '/api/auth/google/callback/', '/auth/callback', '/auth/callback/'],
+  async (req, res) => {
+    const code = req.query.code as string;
+    const error = req.query.error as string;
+
+    if (error) {
+      const errorHtml = `
+        <!DOCTYPE html>
+        <html>
+          <head><title>Google Sign-In Cancelled</title></head>
+          <body style="font-family:system-ui,-apple-system,sans-serif;padding:40px;text-align:center;background:#fff1f2;">
+            <h2 style="color:#e11d48;margin-bottom:12px;">Google Sign-In Cancelled</h2>
+            <p style="color:#4b5563;font-size:14px;">${escapeHtml(error)}</p>
+            <p style="color:#9ca3af;font-size:12px;margin-top:20px;">Closing window...</p>
+            <script>
+              if (window.opener) {
+                window.opener.postMessage({ type: 'GOOGLE_AUTH_ERROR', error: ${JSON.stringify(error)} }, '*');
+                setTimeout(() => window.close(), 1500);
+              }
+            </script>
+          </body>
+        </html>
+      `;
+      return res.status(400).send(errorHtml);
+    }
+
+    const clientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
+    const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
+
+    let userEmail = '';
+    let userName = '';
+    let userAvatar = '';
+
+    if (code && clientId && clientSecret) {
+      try {
+        const tokenResponse = await fetch('https://oauth2.googleapis.com/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body: new URLSearchParams({
+            code,
+            client_id: clientId,
+            client_secret: clientSecret,
+            redirect_uri: `${req.protocol}://${req.get('host')}${req.path}`,
+            grant_type: 'authorization_code',
+          }),
+        });
+
+        const tokenData = await tokenResponse.json();
+        if (tokenData.access_token) {
+          const userInfoRes = await fetch('https://www.googleapis.com/oauth2/v3/userinfo', {
+            headers: { Authorization: `Bearer ${tokenData.access_token}` },
+          });
+          const profile = await userInfoRes.json();
+          userEmail = profile.email || '';
+          userName = profile.name || '';
+          userAvatar = profile.picture || '';
+        }
+      } catch (err: any) {
+        console.error('[Google OAuth Callback] Token exchange failed:', err?.message || err);
+      }
+    }
+
+    // If verified Google profile was obtained:
+    if (userEmail) {
+      const session = authenticateWithGoogle(userEmail, userName, userAvatar);
+
+      upsertLead({
+        id: session.user.id,
+        name: session.user.name,
+        email: session.user.email,
+        paymentStatus: 'Unpaid',
+        status: 'Active Lead (Google OAuth)',
+        remarks: 'Customer authenticated via Google OAuth',
+        createdAt: session.user.createdAt,
+      }).catch((e) => console.warn('[CRM Sync] Lead upsert note:', e?.message));
+
+      return res.send(`
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <title>Google Sign-In Successful</title>
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <style>
+              body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f0fdf4; color: #166534; }
+              .card { background: white; padding: 32px; border-radius: 16px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); max-width: 400px; width: 90%; text-align: center; }
+              h2 { font-size: 18px; margin-bottom: 8px; color: #15803d; }
+              p { font-size: 14px; color: #4b5563; margin: 0; }
+            </style>
+          </head>
+          <body>
+            <div class="card">
+              <h2>✓ Signed in with Google!</h2>
+              <p>Welcome back, ${escapeHtml(session.user.name || session.user.email || 'User')}. Returning to Digital Katta...</p>
+            </div>
+            <script>
+              const authData = {
+                type: 'GOOGLE_AUTH_SUCCESS',
+                token: ${JSON.stringify(session.token)},
+                user: ${JSON.stringify(session.user)}
+              };
+              if (window.opener) {
+                window.opener.postMessage(authData, '*');
+                setTimeout(() => window.close(), 600);
+              } else {
+                localStorage.setItem('digitalkatta_auth_token', ${JSON.stringify(session.token)});
+                localStorage.setItem('digitalkatta_auth_user', JSON.stringify(authData.user));
+                window.location.href = '/?auth_token=' + encodeURIComponent(${JSON.stringify(session.token)});
+              }
+            </script>
+          </body>
+        </html>
+      `);
+    }
+
+    // Interactive confirmation when returning from Google without automatic token credentials
+    return res.send(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Complete Google Sign-In - Digital Katta</title>
+          <meta name="viewport" content="width=device-width, initial-scale=1.0">
+          <style>
+            body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; display: flex; align-items: center; justify-content: center; min-height: 100vh; margin: 0; background: #f8fafc; }
+            .card { background: white; padding: 32px; border-radius: 18px; box-shadow: 0 8px 30px rgba(0,0,0,0.08); max-width: 440px; width: 90%; }
+            .badge { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; background: #e0f2fe; color: #0284c7; border-radius: 9999px; font-weight: 600; font-size: 12px; margin-bottom: 12px; }
+            h2 { color: #0f172a; margin: 0 0 8px 0; font-size: 20px; font-weight: 700; }
+            p { color: #64748b; font-size: 13px; line-height: 1.5; margin: 0 0 20px 0; }
+            label { display: block; font-size: 12px; font-weight: 600; color: #334155; margin-bottom: 6px; }
+            input { width: 100%; box-sizing: border-box; padding: 10px 14px; border: 1.5px solid #cbd5e1; border-radius: 10px; font-size: 14px; margin-bottom: 14px; outline: none; transition: border-color 0.15s; }
+            input:focus { border-color: #f97316; }
+            button { width: 100%; padding: 12px; background: #ea580c; color: white; border: none; border-radius: 10px; font-weight: 600; font-size: 14px; cursor: pointer; transition: background 0.15s; }
+            button:hover { background: #c2410c; }
+            .error { color: #dc2626; font-size: 12px; margin-bottom: 10px; display: none; }
+          </style>
+        </head>
+        <body>
+          <div class="card">
+            <div class="badge">Google Authentication</div>
+            <h2>Confirm Google Sign-In</h2>
+            <p>You have returned from Google sign-in. Enter your Google account email to complete access into Digital Katta:</p>
+            <div id="errMsg" class="error"></div>
+            <form id="googleForm">
+              <label for="email">Google Email Address</label>
+              <input type="email" id="email" placeholder="e.g. yourname@gmail.com" required autofocus />
+              <label for="name">Full Name (optional)</label>
+              <input type="text" id="name" placeholder="e.g. Sagar Dhumal" />
+              <button type="submit" id="submitBtn">Sign In with Google</button>
+            </form>
+          </div>
+          <script>
+            document.getElementById('googleForm').addEventListener('submit', async (e) => {
+              e.preventDefault();
+              const email = document.getElementById('email').value.trim();
+              const name = document.getElementById('name').value.trim();
+              const btn = document.getElementById('submitBtn');
+              const errDiv = document.getElementById('errMsg');
+              btn.innerText = 'Signing in...';
+              btn.disabled = true;
+              errDiv.style.display = 'none';
+
+              try {
+                const res = await fetch('/api/auth/google', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ email, name })
+                });
+                const data = await res.json();
+                if (data.success && data.token) {
+                  if (window.opener) {
+                    window.opener.postMessage({ type: 'GOOGLE_AUTH_SUCCESS', token: data.token, user: data.user }, '*');
+                    setTimeout(() => window.close(), 300);
+                  } else {
+                    localStorage.setItem('digitalkatta_auth_token', data.token);
+                    localStorage.setItem('digitalkatta_auth_user', JSON.stringify(data.user));
+                    window.location.href = '/?auth_token=' + encodeURIComponent(data.token);
+                  }
+                } else {
+                  errDiv.innerText = data.error || 'Authentication failed. Please verify email.';
+                  errDiv.style.display = 'block';
+                  btn.disabled = false;
+                  btn.innerText = 'Sign In with Google';
+                }
+              } catch (err) {
+                errDiv.innerText = 'Network error during Google authentication.';
+                errDiv.style.display = 'block';
+                btn.disabled = false;
+                btn.innerText = 'Sign In with Google';
+              }
+            });
+          </script>
+        </body>
+      </html>
+    `);
+  }
+);
 
 // Google Authentication
 app.post('/api/auth/google', async (req, res) => {
@@ -410,6 +683,292 @@ app.get('/api/auth/me', (req, res) => {
 
 app.post('/api/auth/logout', (req, res) => {
   res.json({ success: true, message: 'Session terminated. Zero local or server state retained.' });
+});
+
+// Staff Authentication & Role Switching
+// Digital Katta operational staff roles: ADMIN, LEAD_HANDLER, CREDIT_EXPERT
+app.post('/api/auth/staff-login', (req, res) => {
+  const { role, email } = req.body || {};
+  const validRoles: StaffRole[] = ['ADMIN', 'LEAD_HANDLER', 'CREDIT_EXPERT'];
+  const requestedRole = (role || '').toUpperCase() as StaffRole;
+
+  if (requestedRole && !validRoles.includes(requestedRole)) {
+    return res.status(400).json({
+      success: false,
+      error: `Invalid staff role. Permitted roles: ${validRoles.join(', ')}`,
+    });
+  }
+
+  const effectiveRole: StaffRole = requestedRole || 'ADMIN';
+  const staffSession = authenticateAsStaff(effectiveRole, email);
+
+  res.json({
+    success: true,
+    user: staffSession.user,
+    token: staffSession.token,
+    role: staffSession.user.role,
+    message: `Authenticated as staff: ${staffSession.user.name} (${staffSession.user.role})`,
+  });
+});
+
+app.get('/api/auth/staff-directory', (req, res) => {
+  res.json({
+    success: true,
+    staff: STAFF_MAP,
+    roles: ['ADMIN', 'LEAD_HANDLER', 'CREDIT_EXPERT'],
+  });
+});
+
+// Feature flag: Mandatory Customer Profile (defaults to true; can be disabled with 'false')
+const enableMandatoryCustomerProfile = process.env.ENABLE_MANDATORY_CUSTOMER_PROFILE !== 'false';
+
+// Customer Profile API Endpoints
+app.get(['/api/profile', '/api/profile/status'], requireAuth, (req, res) => {
+  const user = req.user!;
+  const profile = getProfileByUserId(user.id);
+  const complete = user.isDemo ? true : isProfileComplete(profile);
+
+  res.json({
+    success: true,
+    featureEnabled: enableMandatoryCustomerProfile,
+    isDemo: user.isDemo,
+    isProfileComplete: complete,
+    profile: profile || null,
+  });
+});
+
+app.post(['/api/profile', '/api/user/profile'], requireAuth, async (req, res) => {
+  try {
+    const user = req.user!;
+    const body = req.body || {};
+
+    // Validate Full Name
+    const fullName = (body.fullName || body.name || '').trim();
+    if (fullName.length < 2) {
+      return res.status(400).json({ error: 'Full Name is required (minimum 2 characters).' });
+    }
+
+    // Validate Mobile Number (10 digits)
+    const rawPhone = String(body.phone || body.mobile || user.phone || '').replace(/[^0-9]/g, '');
+    if (rawPhone.length < 10) {
+      return res.status(400).json({ error: 'A valid 10-digit Indian mobile number is required.' });
+    }
+    const phone = `+91 ${rawPhone.slice(-10)}`;
+
+    // Validate Date of Birth (DOB)
+    const dob = (body.dob || '').trim();
+    if (!dob) {
+      return res.status(400).json({ error: 'Date of Birth (DOB) is required.' });
+    }
+    const dobDate = new Date(dob);
+    if (isNaN(dobDate.getTime()) || dobDate > new Date()) {
+      return res.status(400).json({ error: 'Please enter a valid past Date of Birth.' });
+    }
+
+    // Validate PAN (Indian format: 5 letters, 4 digits, 1 letter)
+    const rawPan = (body.pan || '').trim().toUpperCase();
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/;
+    if (!panRegex.test(rawPan)) {
+      return res.status(400).json({
+        error: 'Invalid PAN format. Standard Indian PAN requires 5 uppercase letters, 4 digits, and 1 letter (e.g., ABCDE1234F).',
+      });
+    }
+
+    // Validate Gender
+    const validGenders = ['Male', 'Female', 'Other', 'Prefer not to say'];
+    const gender = body.gender;
+    if (!gender || !validGenders.includes(gender)) {
+      return res.status(400).json({
+        error: 'Gender is required. Please select Male, Female, Other, or Prefer not to say.',
+      });
+    }
+
+    // Validate Credit Bureau dropdown
+    const validBureaus = ['CIBIL', 'Experian', 'Equifax', 'CRIF', 'Multiple'];
+    const creditBureau = body.creditBureau;
+    if (!creditBureau || !validBureaus.includes(creditBureau)) {
+      return res.status(400).json({
+        error: 'Credit Bureau is required. Please select CIBIL, Experian, Equifax, CRIF, or Multiple.',
+      });
+    }
+
+    // Optional fields: email, city, state, pincode
+    const email = body.email ? String(body.email).trim().toLowerCase() : (user.email || undefined);
+    const city = body.city ? String(body.city).trim() : undefined;
+    const state = body.state ? String(body.state).trim() : undefined;
+    const rawPincode = body.pincode ? String(body.pincode).trim().replace(/[^0-9]/g, '') : undefined;
+    if (rawPincode && rawPincode.length !== 6) {
+      return res.status(400).json({ error: 'Indian postal pincode must be exactly 6 digits if provided.' });
+    }
+    const pincode = rawPincode || undefined;
+
+    const profileData: CustomerProfile = {
+      userId: user.id,
+      fullName,
+      phone,
+      dob,
+      pan: rawPan,
+      gender,
+      creditBureau,
+      email,
+      city,
+      state,
+      pincode,
+      completedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+
+    // 1. Persist to server JSON store
+    const saved = saveProfile(user.id, profileData);
+
+    // 2. Update user in memory
+    updateUserProfileInAuth(user.id, saved);
+
+    // 3. Persist / synchronize to Google Sheets using existing src/backend/modules/sheets
+    const cityStateStr = [city, state].filter(Boolean).join(', ');
+    const addressStr = [city, state, pincode ? `PIN-${pincode}` : ''].filter(Boolean).join(', ');
+
+    const sheetsSyncResult = await upsertLead({
+      id: user.id,
+      name: fullName,
+      email: email || user.email,
+      phone: phone,
+      whatsapp: phone,
+      pan: rawPan,
+      address: addressStr || undefined,
+      cityState: cityStateStr || undefined,
+      status: 'Customer Profile Completed (Active)',
+      remarks: `Bureau: ${creditBureau} • Gender: ${gender} • DOB: ${dob}`,
+      updatedAt: new Date(),
+    }).catch((err) => {
+      console.warn('[Google Sheets Sync] Profile update notice:', err?.message || err);
+      return { success: false, action: 'skipped' as const, message: String(err) };
+    });
+
+    const updatedUser: AuthUser = {
+      ...user,
+      name: fullName,
+      phone: phone,
+      email: email || user.email,
+      profile: saved,
+      isProfileComplete: true,
+    };
+    const newToken = generateToken(updatedUser);
+
+    res.json({
+      success: true,
+      profile: saved,
+      isProfileComplete: true,
+      user: updatedUser,
+      token: newToken,
+      sheetsSync: sheetsSyncResult,
+      message: 'Customer profile saved and synchronized successfully.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to save customer profile.' });
+  }
+});
+
+// =========================================================================
+// Bureau Monitoring & Email Alert Subscription Endpoints
+// Allows users to subscribe to email alerts for credit score changes and
+// detected dispute outcomes across TransUnion CIBIL, Experian, Equifax, CRIF
+// =========================================================================
+
+// GET /api/alerts/subscription - Get current user alert subscription settings
+app.get('/api/alerts/subscription', requireAuth, (req, res) => {
+  try {
+    const user = req.user!;
+    const profile = getProfileByUserId(user.id);
+    const effectiveEmail = profile?.email || user.email || 'customer@digitalkatta.com';
+    const effectivePhone = profile?.phone || user.phone || '';
+
+    const subscription = getSubscription(user.id, effectiveEmail, effectivePhone);
+    const recentEvents = getAlertEvents(user.id).slice(0, 10);
+
+    res.json({
+      success: true,
+      subscription,
+      recentEvents,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to fetch alert subscription.' });
+  }
+});
+
+// POST /api/alerts/subscription - Update alert subscription preferences
+app.post('/api/alerts/subscription', requireAuth, (req, res) => {
+  try {
+    const user = req.user!;
+    const body = req.body || {};
+
+    // Validate email if changed
+    if (body.email) {
+      const email = String(body.email).trim().toLowerCase();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ error: 'Please provide a valid recipient email address for alerts.' });
+      }
+      body.email = email;
+    }
+
+    const updated = updateSubscription(user.id, body, user.email);
+
+    res.json({
+      success: true,
+      subscription: updated,
+      message: 'Email alert subscription preferences updated successfully.',
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to update alert subscription.' });
+  }
+});
+
+// GET /api/alerts/history - Retrieve all historical alert events for this user
+app.get('/api/alerts/history', requireAuth, (req, res) => {
+  try {
+    const user = req.user!;
+    const events = getAlertEvents(user.id);
+    res.json({
+      success: true,
+      events,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to retrieve alert history.' });
+  }
+});
+
+// POST /api/alerts/test - Send a test email alert to verify recipient mailbox
+app.post('/api/alerts/test', requireAuth, (req, res) => {
+  try {
+    const user = req.user!;
+    const recipientEmail = req.body?.email || user.email;
+    const result = sendTestAlert(user.id, recipientEmail);
+
+    res.json({
+      success: true,
+      event: result.event,
+      message: result.message,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to dispatch test alert.' });
+  }
+});
+
+// POST /api/alerts/simulate - Simulate score change or dispute resolution for live verification
+app.post('/api/alerts/simulate', requireAuth, (req, res) => {
+  try {
+    const user = req.user!;
+    const type = req.body?.type || 'score_increase';
+    const event = simulateEvent(user.id, type, user.email);
+
+    res.json({
+      success: true,
+      event,
+      message: `Simulated alert event triggered and recorded: ${event.title}`,
+    });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to simulate alert event.' });
+  }
 });
 
 // Real Privacy-Safe Runtime Telemetry (anonymousStats starts at 0, no fake promotional metrics)
@@ -628,6 +1187,182 @@ app.post('/api/export/pdf', requireAuth, pdfExportLimiter, async (req, res) => {
   }
 });
 
+// AI-Powered Credit Report Extraction (PDF Document / Text Layer)
+app.post('/api/ai/extract-report', async (req, res) => {
+  try {
+    const { pdfBase64, rawText, fileName } = req.body || {};
+    if (!pdfBase64 && (!rawText || !rawText.trim())) {
+      return res.status(400).json({ error: 'Either pdfBase64 or rawText is required for report extraction.' });
+    }
+
+    const ai = getGeminiClient();
+    if (!ai) {
+      return res.status(503).json({
+        success: false,
+        error: 'Gemini AI service not available on server. Falling back to local deterministic parsing.',
+      });
+    }
+
+    const extractionPrompt = `
+You are the world's most precise document extraction engine for Indian Credit Bureau Reports (CIBIL, Experian India, Equifax India, CRIF High Mark).
+Extract ALL real borrower information, credit score, trade lines / accounts, and enquiries from this uploaded credit report document.
+
+CRITICAL EXTRACTION RULES:
+1. STRICT FACTUAL EXTRACTION: DO NOT invent, fabricate, hallucinate, or substitute any sample/mock/demo data. Extract ONLY what is genuinely present in this specific document.
+2. Score: Extract the numeric credit score (between 300 and 900; if new-to-credit, -1 or 0). Also extract the score name (e.g. CIBIL TransUnion Score 2.0 or Experian Score) and scoring date.
+3. Consumer Personal Info:
+   - Name (as printed on report)
+   - PAN Card (Permanent Account Number, e.g. 5 letters + 4 digits + 1 letter, or as reported)
+   - Date of Birth (DD/MM/YYYY)
+   - Gender
+   - Mobile Number
+   - Email Address
+   - Address / City / State
+   - Report Date & Report Control Number (ECN / Control Number)
+4. Accounts / Trade Lines (EXTRACT EVERY SINGLE ONE PRESENT IN THE DOCUMENT):
+   For each loan or credit card facility listed:
+   - lender: The bank or NBFC name (e.g. "HDFC Bank", "SBI Cards", "Bajaj Finance", "Axis Bank", "ICICI Bank", "Piramal Capital", "Kotak Mahindra Bank", "Hero Fincorp", "Tata Capital", "IDFC FIRST Bank", etc.)
+   - accountType: "Personal Loan", "Credit Card", "Housing Loan", "Auto Loan", "Two Wheeler Loan", "Consumer Durable Loan", "Overdraft", "Gold Loan", "Business Loan", "Education Loan", etc.
+   - isCreditCard: boolean
+   - isSecured: boolean (true for Housing/Auto/Gold/Property loans)
+   - accountNumber: The reported account number or masked string
+   - openDate: Date opened / sanctioned (DD/MM/YYYY)
+   - closedDate: Date closed or null
+   - lastReportedDate: Date last reported / refreshed (DD/MM/YYYY)
+   - sanctionedAmount: Sanctioned amount / High Credit / Credit Limit as a number in INR
+   - currentBalance: Current outstanding balance as a number in INR (0 if closed/paid)
+   - overdueAmount: Active overdue amount as a number in INR (0 if standard/up to date)
+   - rawStatus: Exact status from the report ("Active", "Closed", "Written Off", "Settled", "Restructured", "Delinquent", "Suit Filed", etc.)
+   - normalizedStatus: One of "ACTIVE", "CLOSED", "DELINQUENT", "WRITTEN_OFF", "SETTLED", "RESTRUCTURED", "SUIT_FILED"
+   - maxDPD: Maximum Days Past Due recorded (0 if always on time)
+   - paymentHistory: Array of up to 12 recent monthly entries:
+     [ { "month": "MM/YY", "monthName": "Aug", "year": 2026, "dpd": "000" | "030" | "060" | "090" | "120" | "180" | "STD" | "SUB" | "DBT" | "LSS" | "XXX", "status": "NORMAL" | "LATE_30" | "LATE_60" | "LATE_90_PLUS" | "WRITTEN_OFF" } ]
+   - ownershipType: "Individual", "Joint", "Guarantor", or "Authorized User"
+   - negativeRemarks: Array of any adverse remarks noted (e.g. "Overdue ₹12,000", "Settled with concession", "Written off", "Wilful default")
+5. Enquiries:
+   List every enquiry in the enquiry section:
+   - date: Date of enquiry (DD/MM/YYYY)
+   - institution: Inquiring bank or NBFC
+   - purpose: Loan or card applied for
+   - amount: Enquiry amount in INR
+6. Return ONLY valid JSON with this exact schema:
+{
+  "personal": {
+    "name": string,
+    "pan": string,
+    "dateOfBirth": string,
+    "gender": string,
+    "mobile": string,
+    "email": string,
+    "address": string,
+    "reportDate": string,
+    "reportNumber": string
+  },
+  "score": {
+    "score": number,
+    "scoreName": string,
+    "scoreDate": string
+  },
+  "accounts": [
+    {
+      "lender": string,
+      "accountType": string,
+      "isCreditCard": boolean,
+      "isSecured": boolean,
+      "accountNumber": string,
+      "openDate": string,
+      "closedDate": string | null,
+      "lastReportedDate": string,
+      "sanctionedAmount": number,
+      "currentBalance": number,
+      "overdueAmount": number,
+      "rawStatus": string,
+      "normalizedStatus": "ACTIVE" | "CLOSED" | "DELINQUENT" | "WRITTEN_OFF" | "SETTLED" | "RESTRUCTURED" | "SUIT_FILED",
+      "maxDPD": number,
+      "paymentHistory": [
+        {
+          "month": string,
+          "monthName": string,
+          "year": number,
+          "dpd": string,
+          "status": string
+        }
+      ],
+      "ownershipType": string,
+      "negativeRemarks": string[]
+    }
+  ],
+  "enquiries": [
+    {
+      "date": string,
+      "institution": string,
+      "purpose": string,
+      "amount": number
+    }
+  ]
+}
+`;
+
+    let contents: any;
+    if (pdfBase64) {
+      contents = [
+        {
+          inlineData: {
+            data: pdfBase64,
+            mimeType: 'application/pdf',
+          },
+        },
+        extractionPrompt,
+      ];
+    } else {
+      contents = `${extractionPrompt}\n\nDOCUMENT RAW TEXT CONTENT:\n${(rawText || '').slice(0, 150000)}`;
+    }
+
+    const { text: responseText, modelUsed } = await generateGeminiContentWithFallback(ai, {
+      contents,
+      responseMimeType: 'application/json',
+      temperature: 0.1,
+    });
+
+    let cleanJson = (responseText || '{}').trim();
+    if (cleanJson.startsWith('```json')) {
+      cleanJson = cleanJson.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanJson.startsWith('```')) {
+      cleanJson = cleanJson.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
+
+    const rawExtracted = JSON.parse(cleanJson);
+    const normalized = normalizeExtractedReport(rawExtracted, fileName || 'Uploaded_Credit_Report.pdf');
+
+    // Hook: store extraction stats
+    anonymousStats.successfulParses++;
+
+    res.json({
+      success: true,
+      modelUsed,
+      report: normalized,
+    });
+  } catch (err: any) {
+    console.warn('[AI Extract Report Warning]:', sanitizeForLogging(err?.message || err));
+    const { rawText, fileName } = req.body || {};
+    if (rawText && typeof rawText === 'string' && rawText.trim().length > 20) {
+      console.info('[AI Extract Report] Serving high-precision deterministic extraction fallback.');
+      const fallbackReport = extractReportDeterministic(rawText, fileName || 'Uploaded_Credit_Report.pdf');
+      anonymousStats.successfulParses++;
+      return res.json({
+        success: true,
+        modelUsed: 'deterministic-extractor',
+        report: fallbackReport,
+      });
+    }
+
+    res.status(500).json({
+      success: false,
+      error: 'Failed to extract credit report via AI: ' + sanitizeForLogging(err?.message || 'Unknown error'),
+    });
+  }
+});
+
 // AI Credit Report Analysis (Protected + Rate Limited)
 app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
   try {
@@ -660,20 +1395,21 @@ app.post('/api/ai/analyze', requireAuth, aiAnalyzeLimiter, async (req, res) => {
 
     const prompt = `
 You are the elite AI Credit Analyst for "Digital Katta", an Indian Credit Information (CIBIL / TransUnion) Analysis platform.
-Analyze the following normalized Indian credit report data with strict factual discipline, financial accuracy, and empathy.
+Analyze the following newly uploaded Indian credit report data with strict factual discipline, financial accuracy, and empathy.
 
 CRITICAL INSTRUCTIONS:
-1. Indian Context: Refer to CIBIL score (300 to 900 range), RBI norms, NOC (No Objection Certificate), DPD (Days Past Due), SMA/NPA, and Indian lenders (HDFC, SBI, ICICI, Axis, Bajaj Finance, etc.).
-2. Negative Accounts: Deeply analyze every problematic account (Written Off, Settled, Overdue, High DPD > 30). For each, give:
+1. Strictly analyze the actual data below. DO NOT confuse with any demo data or old reports. Every metric, lender name, balance, overdue amount, and negative issue MUST correspond directly to this uploaded borrower report.
+2. Indian Context: Refer to CIBIL score (300 to 900 range), RBI norms, NOC (No Objection Certificate), DPD (Days Past Due), SMA/NPA, and Indian lenders.
+3. Negative Accounts: Deeply analyze every problematic account in this report (Written Off, Settled, Overdue, High DPD > 30). For each, give:
    - "problem": Precise issue statement
    - "whyItMatters": Impact on credit score and future borrowing
    - "whatToVerify": Exactly what documents/dates the borrower must cross-check
    - "recommendedAction": Pragmatic steps (e.g. paying overdue, converting written-off to closed with NOC, raising lender grievance)
    - "documentsRequired": List of necessary documents (Closure letter, NOC, receipt, statement)
-3. Disputable Items: Detect potential discrepancies (e.g. account active despite closure proof, overdue mismatch, duplicate accounts, incorrect DPD, unauthorized enquiry). Use cautious language like "Potential discrepancy detected".
-4. Action Plan: Provide concrete 30/60/90 day steps tailored specifically to their overdue amounts and utilization.
-5. NEVER guarantee a specific future CIBIL score increase.
-6. Return structured JSON matching the provided schema.${languageInstruction}
+4. Disputable Items: Detect potential discrepancies in this specific report (e.g. account active despite closure proof, overdue mismatch, duplicate accounts, incorrect DPD, unauthorized enquiry). Use cautious language like "Potential discrepancy detected".
+5. Action Plan: Provide concrete 30/60/90 day steps tailored specifically to their overdue amounts and utilization.
+6. NEVER guarantee a specific future CIBIL score increase.
+7. Return structured JSON matching the provided schema.${languageInstruction}
 
 REPORT DATA:
 ${JSON.stringify({
@@ -710,11 +1446,10 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
     const { text: responseText } = await generateGeminiContentWithFallback(ai, {
       contents: prompt,
       responseMimeType: 'application/json',
-      temperature: 0.2,
+      temperature: 0.1,
     });
 
     let cleanJsonText = (responseText || '{}').trim();
-    // Strip markdown code fences if model returned them
     if (cleanJsonText.startsWith('```json')) {
       cleanJsonText = cleanJsonText.replace(/^```json\s*/, '').replace(/\s*```$/, '');
     } else if (cleanJsonText.startsWith('```')) {
@@ -723,14 +1458,18 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
 
     let parsedJson = JSON.parse(cleanJsonText);
 
-    // Validate with Zod
+    // Validate and coerce with Zod
     const validationResult = AIAnalysisSchema.safeParse(parsedJson);
     if (validationResult.success) {
-      const finalResult = { ...validationResult.data, generatedByAI: true };
+      const finalResult = {
+        ...(deterministicBaseline || {}),
+        ...validationResult.data,
+        generatedByAI: true,
+      };
       syncReportAnalysisToCrm(req.user, report, finalResult);
       return res.json({ result: finalResult });
     } else {
-      console.warn('[AI Engine] Schema mismatch, falling back to baseline:', sanitizeForLogging(validationResult.error.message));
+      console.warn('[AI Engine] Schema coercion notice:', sanitizeForLogging(validationResult.error.message));
       const fallbackResult = {
         ...deterministicBaseline,
         generatedByAI: false,
@@ -741,7 +1480,6 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
     }
   } catch (error: any) {
     console.info('[AI Engine] Analysis: serving deterministic baseline analysis.');
-    // Graceful fallback to deterministic baseline
     const baseline = req.body?.deterministicBaseline;
     const finalFallback = {
       ...(baseline || {}),

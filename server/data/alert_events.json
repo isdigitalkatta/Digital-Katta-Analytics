@@ -1,0 +1,50 @@
+[
+  {
+    "userId": "demo_7361676172",
+    "type": "DISPUTE_OUTCOME",
+    "title": "✅ Dispute Outcome: Inaccurate Overdue Removed by Lender",
+    "message": "HDFC Bank has rectified the erroneous 90+ DPD overdue on Credit Card #4129. Account status updated to STD (Standard / Clean).",
+    "recipientEmail": "sagar.dhumal@example.com",
+    "status": "DELIVERED",
+    "details": {
+      "accountName": "HDFC Bank Credit Card",
+      "accountMasked": "XXXX-XXXX-XXXX-4129",
+      "bureau": "TransUnion CIBIL",
+      "disputeOutcome": "RECTIFIED",
+      "actionRequired": "Download your updated bureau report to confirm reflect in your trade line."
+    },
+    "id": "alt_1790341020583_y00f7",
+    "timestamp": "2026-09-25T12:57:00.583Z"
+  },
+  {
+    "userId": "demo_7361676172",
+    "type": "SCORE_CHANGE",
+    "title": "📈 CIBIL Score Increase Detected (+24 Points)",
+    "message": "Great news! Your monitored TransUnion CIBIL score increased from 672 to 696 (+24 points) following timely payment reporting.",
+    "recipientEmail": "sagar.dhumal@example.com",
+    "status": "DELIVERED",
+    "details": {
+      "previousScore": 672,
+      "newScore": 696,
+      "scoreDiff": 24,
+      "bureau": "TransUnion CIBIL",
+      "actionRequired": "Keep credit card utilization below 30% to maintain this upward momentum."
+    },
+    "id": "alt_1790341020562_bwwix",
+    "timestamp": "2026-09-25T12:57:00.562Z"
+  },
+  {
+    "userId": "demo_7361676172",
+    "type": "SYSTEM_TEST",
+    "title": "TransUnion CIBIL Monitored Alert Test (Digital Katta)",
+    "message": "Test email notification dispatched to isdigitalkatta@gmail.com. Your credit score and dispute outcome monitoring is active for TransUnion CIBIL and Experian.",
+    "recipientEmail": "isdigitalkatta@gmail.com",
+    "status": "DELIVERED",
+    "details": {
+      "bureau": "TransUnion CIBIL",
+      "actionRequired": "No action needed. Your monitoring preferences are correctly configured."
+    },
+    "id": "alt_1790341020537_jhhk8",
+    "timestamp": "2026-09-25T12:57:00.537Z"
+  }
+]

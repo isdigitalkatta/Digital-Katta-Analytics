@@ -101,9 +101,21 @@ export const MilestoneRewards: React.FC<MilestoneRewardsProps> = ({
     points: number;
   } | null>(null);
 
-  // Read Action Plan state from localStorage
-  useEffect(() => {
+  // Sync all states from localStorage
+  const syncFromStorage = () => {
     try {
+      const savedDispute = localStorage.getItem(DISPUTES_FILED_KEY) === 'true';
+      setHasFiledDispute(savedDispute);
+
+      const savedScoreImp = localStorage.getItem(SCORE_IMPROVED_KEY) === 'true';
+      setHasScoreImprovement(savedScoreImp);
+
+      const savedStreak = localStorage.getItem(STREAK_DAYS_KEY);
+      if (savedStreak) setStreakDays(parseInt(savedStreak, 10));
+
+      const savedCheckin = localStorage.getItem(LAST_CHECKIN_KEY);
+      if (savedCheckin) setLastCheckinDate(savedCheckin);
+
       const savedStrategic = localStorage.getItem(ACTION_PLAN_STORAGE_KEY);
       const strategicObj = savedStrategic ? JSON.parse(savedStrategic) : {};
       const strategicDone = Object.values(strategicObj).filter(Boolean).length;
@@ -115,11 +127,25 @@ export const MilestoneRewards: React.FC<MilestoneRewardsProps> = ({
       const totalDone = strategicDone + roadmapDone;
       setActionPlanProgress({
         completed: totalDone,
-        total: 5, // minimum 5 milestone tasks to unlock action pioneer badge
+        total: 5,
       });
     } catch (err) {
       console.warn('Action plan sync offline:', err);
     }
+  };
+
+  // Listen for storage events or custom milestone update events
+  useEffect(() => {
+    syncFromStorage();
+
+    const handleCustomEvent = () => syncFromStorage();
+    window.addEventListener('cibil_milestone_event', handleCustomEvent);
+    window.addEventListener('storage', handleCustomEvent);
+
+    return () => {
+      window.removeEventListener('cibil_milestone_event', handleCustomEvent);
+      window.removeEventListener('storage', handleCustomEvent);
+    };
   }, []);
 
   // Today's Date String YYYY-MM-DD

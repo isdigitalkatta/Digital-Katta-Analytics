@@ -1,0 +1,30 @@
+[
+  {
+    "userId": "demo_7361676172",
+    "email": "sagar.dhumal@example.com",
+    "phone": "+91 98201 23456",
+    "mirrorToPhone": false,
+    "scoreAlertsEnabled": true,
+    "scoreChangeThreshold": 5,
+    "scoreDirection": "ANY",
+    "targetScoreGoal": 750,
+    "notifyWhenGoalReached": true,
+    "scoreDropWarning": true,
+    "disputeAlertsEnabled": true,
+    "monitoredBureaus": [
+      "CIBIL",
+      "Experian",
+      "Equifax",
+      "CRIF"
+    ],
+    "notifyOnResolution": true,
+    "notifyOnLenderResponse": true,
+    "notifyOnEscalation": true,
+    "alertFrequency": "INSTANT",
+    "status": "ACTIVE",
+    "subscribedAt": "2026-09-25T12:56:54.744Z",
+    "updatedAt": "2026-09-25T12:56:54.744Z",
+    "totalAlertsDispatched": 3,
+    "lastAlertSentAt": "2026-09-25T12:57:00.583Z"
+  }
+]

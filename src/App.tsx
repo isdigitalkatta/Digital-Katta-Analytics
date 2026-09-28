@@ -20,6 +20,7 @@ import { ProfilePage } from './components/pages/ProfilePage';
 import { LoginScreen } from './components/LoginScreen';
 import { downloadAiAnalysisReportPdf } from './utils/pdfExport';
 import { useIdleTimer } from './hooks/useIdleTimer';
+import { useAppLanguage } from './hooks/useAppLanguage';
 
 // Granular sub-views
 import { UploadModal } from './components/UploadModal';
@@ -36,11 +37,25 @@ import { AdminDashboardView } from './components/AdminDashboardView';
 import { PrivacyModal } from './components/PrivacyModal';
 import { ScoreGauge } from './components/ScoreGauge';
 import { AuthModal } from './components/AuthModal';
+import { CustomerProfileModal } from './components/CustomerProfileModal';
 import { LegalDisclaimer } from './components/LegalDisclaimer';
 import { useAuth } from './context/AuthContext';
 
 export function App() {
-  const { isAuthenticated, isAuthModalOpen, openAuthModal, closeAuthModal, authenticatedFetch, user } = useAuth();
+  const {
+    isAuthenticated,
+    isAuthModalOpen,
+    openAuthModal,
+    closeAuthModal,
+    authenticatedFetch,
+    user,
+    isMandatoryProfileModalOpen,
+    closeMandatoryProfileModal,
+    mandatoryProfileFeatureEnabled,
+    isProfileComplete,
+  } = useAuth();
+  
+  const { currentLang, isRtl } = useAppLanguage();
   
   // Initialize with the standard stressed demo dataset (matches the 642 score in mockup)
   const [report, setReport] = useState<NormalizedCreditReport | null>(demoStressedReport);
@@ -52,13 +67,16 @@ export function App() {
   const [isSessionUnlocked, setIsSessionUnlocked] = useState<boolean>(false);
   const [sessionTimedOut, setSessionTimedOut] = useState<boolean>(false);
 
-  const handleSessionUnlock = () => {
+  const handleSessionUnlock = (targetTab?: DashboardTab) => {
     try {
       sessionStorage.setItem('digitalkatta_session_unlocked', 'true');
     } catch {}
     setIsSessionUnlocked(true);
     setShowLoginView(false);
     setSessionTimedOut(false);
+    if (targetTab) {
+      setCurrentTab(targetTab);
+    }
   };
 
   // 5-Minute Inactivity Idle Timer:
@@ -113,6 +131,12 @@ export function App() {
 
   // Process newly loaded report
   const handleReportLoaded = async (loadedReport: NormalizedCreditReport) => {
+    // Clear any previous report action items from localStorage
+    try {
+      localStorage.removeItem('digitalkatta_action_plan_tasks');
+      localStorage.removeItem('digitalkatta_strategic_action_plan');
+    } catch {}
+
     setReport(loadedReport);
     setCurrentTab('analysis');
 
@@ -182,26 +206,39 @@ export function App() {
   // MANDATORY: Login screen is shown at the start of every session or when idle
   if (!isSessionUnlocked || showLoginView) {
     return (
-      <div className="min-h-screen bg-[#FFF8F0]">
+      <div className="min-h-screen bg-[#FFF8F0]" key={currentLang} dir={isRtl ? 'rtl' : 'ltr'}>
         <LoginScreen
           onSuccess={handleSessionUnlock}
           onCancel={handleSessionUnlock}
+          onNavigateToCrm={() => handleSessionUnlock('admin')}
           sessionTimedOut={sessionTimedOut}
+        />
+        <CustomerProfileModal
+          isOpen={
+            isMandatoryProfileModalOpen ||
+            Boolean(isAuthenticated && !user?.isDemo && mandatoryProfileFeatureEnabled && !isProfileComplete)
+          }
+          onClose={() => {
+            closeMandatoryProfileModal();
+            handleSessionUnlock();
+          }}
+          isMandatory={!user?.isDemo && mandatoryProfileFeatureEnabled && !isProfileComplete}
         />
       </div>
     );
   }
 
   return (
-    <DashboardShell
-      currentTab={currentTab}
-      onSelectTab={(tab) => setCurrentTab(tab)}
-      negativeAccountsCount={analysis?.negativeAccounts.length || 0}
-      disputeCount={analysis?.disputeOpportunities.length || 0}
-      onToggleChat={() => setIsChatOpen((prev) => !prev)}
-      isChatOpen={isChatOpen}
-      onDownloadPdf={handleDownloadPdf}
-    >
+    <div key={currentLang} dir={isRtl ? 'rtl' : 'ltr'} className="min-h-screen">
+      <DashboardShell
+        currentTab={currentTab}
+        onSelectTab={(tab) => setCurrentTab(tab)}
+        negativeAccountsCount={analysis?.negativeAccounts.length || 0}
+        disputeCount={analysis?.disputeOpportunities.length || 0}
+        onToggleChat={() => setIsChatOpen((prev) => !prev)}
+        isChatOpen={isChatOpen}
+        onDownloadPdf={handleDownloadPdf}
+      >
       {/* ========================================================= */}
       {/* PAGE A: HOME                                              */}
       {/* ========================================================= */}
@@ -392,7 +429,7 @@ export function App() {
 
       {currentTab === 'admin' && (
         <div className="max-w-5xl mx-auto pb-10 text-left">
-          <AdminDashboardView />
+          <AdminDashboardView onBackToCustomer={() => setCurrentTab('home')} />
         </div>
       )}
 
@@ -427,8 +464,23 @@ export function App() {
           setIsAuthOpen(false);
           closeAuthModal();
         }}
+        onNavigateToCrm={() => {
+          setIsAuthOpen(false);
+          closeAuthModal();
+          setCurrentTab('admin');
+        }}
+      />
+
+      <CustomerProfileModal
+        isOpen={
+          isMandatoryProfileModalOpen ||
+          Boolean(isAuthenticated && !user?.isDemo && mandatoryProfileFeatureEnabled && !isProfileComplete)
+        }
+        onClose={closeMandatoryProfileModal}
+        isMandatory={!user?.isDemo && mandatoryProfileFeatureEnabled && !isProfileComplete}
       />
     </DashboardShell>
+    </div>
   );
 }
 

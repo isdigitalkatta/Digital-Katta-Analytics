@@ -5,6 +5,7 @@ interface DigitalKattaBrandLogoProps {
   size?: 'sm' | 'md' | 'lg' | 'xl';
   showTagline?: boolean;
   tagline?: string;
+  subTagline?: string;
   className?: string;
   framed?: boolean;
   horizontal?: boolean;
@@ -14,7 +15,8 @@ interface DigitalKattaBrandLogoProps {
 export const DigitalKattaBrandLogo: React.FC<DigitalKattaBrandLogoProps> = ({
   size = 'md',
   showTagline = true,
-  tagline = 'ठिकाण एक, सुरक्षित अपेक्षा...!',
+  tagline = 'ठिकाण एक, सुविधा अनेक..!',
+  subTagline,
   className = '',
   framed = false,
   horizontal = true,
@@ -49,7 +51,7 @@ export const DigitalKattaBrandLogo: React.FC<DigitalKattaBrandLogoProps> = ({
   const logoImage = !imgError ? (
     <img
       src={DIGITAL_KATTA_LOGO_BASE64 || '/digital_katta_logo.jpg'}
-      alt="Digital कट्टा - ठिकाण एक, सुविधा अनेक..!"
+      alt="Digital कट्टा - ठिकाण एक, सुविधा अनेक..! (Theekan Ek, Suvidha Anek)"
       className={`${imgSizeMap} rounded-xl object-contain shrink-0 shadow-2xs border border-orange-200/60 bg-[#12233F] transition-transform duration-200 hover:scale-105`}
       onError={() => setImgError(true)}
       loading="eager"
@@ -76,13 +78,33 @@ export const DigitalKattaBrandLogo: React.FC<DigitalKattaBrandLogoProps> = ({
         <span className="text-[#F56B2B]">कट्टा</span>
       </div>
       {showTagline && (
-        <span
-          className={`font-semibold ${taglineSizeMap} mt-0.5 tracking-tight ${
-            variant === 'light' ? 'text-orange-200' : 'text-[#881337]'
-          }`}
-        >
-          {tagline}
-        </span>
+        <div className="flex flex-col">
+          <span
+            className={`font-semibold ${taglineSizeMap} mt-0.5 tracking-tight ${
+              variant === 'light' ? 'text-orange-200' : 'text-[#881337]'
+            }`}
+            title="Theekan Ek, Suvidha Anek"
+          >
+            {tagline}
+          </span>
+          {subTagline ? (
+            <span
+              className={`text-[9px] sm:text-[10px] font-medium tracking-tight ${
+                variant === 'light' ? 'text-orange-200/80' : 'text-slate-500'
+              }`}
+            >
+              {subTagline}
+            </span>
+          ) : (size === 'lg' || size === 'xl') ? (
+            <span
+              className={`text-[9px] sm:text-[10px] font-medium tracking-tight ${
+                variant === 'light' ? 'text-orange-200/80' : 'text-slate-500'
+              }`}
+            >
+              Theekan Ek, Suvidha Anek
+            </span>
+          ) : null}
+        </div>
       )}
     </div>
   );

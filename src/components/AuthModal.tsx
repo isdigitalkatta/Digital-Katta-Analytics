@@ -5,9 +5,10 @@ import { LoginScreen } from './LoginScreen';
 interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onNavigateToCrm?: () => void;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onNavigateToCrm }) => {
   if (!isOpen) return null;
 
   return (
@@ -26,6 +27,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose }) => {
           isModalView={true}
           onSuccess={onClose}
           onCancel={onClose}
+          onNavigateToCrm={() => {
+            if (onNavigateToCrm) onNavigateToCrm();
+            onClose();
+          }}
         />
       </div>
     </div>

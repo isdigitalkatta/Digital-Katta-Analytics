@@ -20,6 +20,7 @@ import {
 } from 'lucide-react';
 import { NormalizedCreditReport, AIAnalysisResult } from '../../types';
 import { downloadAiAnalysisReportPdf } from '../../utils/pdfExport';
+import { useAppLanguage } from '../../hooks/useAppLanguage';
 
 interface AnalysisPageProps {
   report: NormalizedCreditReport | null;
@@ -32,6 +33,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
   analysis,
   onNavigate,
 }) => {
+  const { t } = useAppLanguage();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<string>('');
   const [downloadSuccess, setDownloadSuccess] = useState(false);
@@ -113,10 +115,10 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 border-b border-[#E8ECF0] pb-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-extrabold text-[#12233F] font-heading tracking-tight">
-            CIBIL Report Analysis
+            {t('dashboard.scoreCardTitle', 'CIBIL Report Analysis')}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 mt-0.5">
-            Here's your credit health summary based on your uploaded report.
+            {t('dashboard.criticalIssuesSubtitle', "Here's your credit health summary based on your uploaded report.")}
           </p>
         </div>
 
@@ -151,7 +153,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
             ) : (
               <>
                 <Download className="w-4 h-4" />
-                <span>Download AI Analysis (PDF)</span>
+                <span>{t('common.downloadAiPdf', 'Download AI Analysis (PDF)')}</span>
               </>
             )}
           </button>
@@ -238,7 +240,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
 
             <div>
               <h2 className="text-xl font-extrabold text-[#12233F] font-heading">
-                Score Insight
+                {t('dashboard.criticalIssuesTitle', 'Score Insight')}
               </h2>
               <p className="text-xs sm:text-sm text-slate-700 mt-2 leading-relaxed font-medium">
                 {meta.insight}
@@ -252,7 +254,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
               onClick={() => onNavigate('action-plan')}
               className="inline-flex items-center gap-2 px-5 py-3 rounded-xl bg-[#FF6A00] hover:bg-[#E65F00] text-white font-bold text-xs sm:text-sm shadow-md shadow-orange-500/20 transition-all cursor-pointer transform active:scale-98"
             >
-              <span>View Detailed Analysis</span>
+              <span>{t('home.viewAnalysisBtn', 'View Detailed Analysis')}</span>
               <ArrowRight className="w-4 h-4" />
             </button>
           </div>
@@ -270,7 +272,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
             {negativeCount}
           </div>
           <div className="text-xs font-bold text-[#12233F] mt-0.5">
-            Negative Accounts
+            {t('negative.title', 'Negative Accounts')}
           </div>
           <div className="text-[11px] font-medium text-slate-500 mt-0.5">
             Require attention
@@ -302,7 +304,7 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
             {utilizationPercent}%
           </div>
           <div className="text-xs font-bold text-[#12233F] mt-0.5">
-            Credit Utilization
+            {t('dashboard.utilization', 'Credit Utilization')}
           </div>
           <div className="text-[11px] font-medium text-slate-500 mt-0.5">
             Recommended &lt; 30%

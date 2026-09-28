@@ -304,3 +304,81 @@ export interface MilestoneReward {
   actionTab?: string;
   bureauTip: string;
 }
+
+export type CreditBureauOption = 'CIBIL' | 'Experian' | 'Equifax' | 'CRIF' | 'Multiple';
+export type GenderOption = 'Male' | 'Female' | 'Other' | 'Prefer not to say';
+
+export interface CustomerProfile {
+  userId?: string;
+  fullName: string;
+  phone: string;
+  dob: string;
+  pan: string;
+  gender: GenderOption;
+  creditBureau: CreditBureauOption;
+  email?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  completedAt?: string;
+  updatedAt?: string;
+}
+
+export type MonitoredBureau = 'CIBIL' | 'Experian' | 'Equifax' | 'CRIF';
+export type ScoreDirection = 'ANY' | 'INCREASE_ONLY' | 'DECREASE_ONLY';
+export type AlertFrequency = 'INSTANT' | 'DAILY_DIGEST' | 'WEEKLY_SUMMARY';
+export type AlertStatus = 'ACTIVE' | 'PAUSED' | 'UNSUBSCRIBED';
+
+export interface AlertSubscription {
+  userId: string;
+  email: string;
+  alternateEmail?: string;
+  phone?: string;
+  mirrorToPhone: boolean;
+
+  // Credit Score Alerts
+  scoreAlertsEnabled: boolean;
+  scoreChangeThreshold: number; // e.g. 1 (any), 5, 10, 20
+  scoreDirection: ScoreDirection;
+  targetScoreGoal?: number;
+  notifyWhenGoalReached: boolean;
+  scoreDropWarning: boolean; // Flag rapid drops >15 pts
+
+  // Dispute Outcome Alerts
+  disputeAlertsEnabled: boolean;
+  monitoredBureaus: MonitoredBureau[];
+  notifyOnResolution: boolean; // Overdue removed / NOC issued / DPD rectified
+  notifyOnLenderResponse: boolean; // Bank sent feedback / rejected / asked for proof
+  notifyOnEscalation: boolean; // Escalated to RBI Ombudsman
+
+  // General Settings
+  alertFrequency: AlertFrequency;
+  status: AlertStatus;
+  subscribedAt: string;
+  updatedAt: string;
+  lastAlertSentAt?: string;
+  totalAlertsDispatched: number;
+}
+
+export interface AlertNotificationEvent {
+  id: string;
+  userId: string;
+  type: 'SCORE_CHANGE' | 'DISPUTE_OUTCOME' | 'GOAL_REACHED' | 'SYSTEM_TEST';
+  title: string;
+  message: string;
+  recipientEmail: string;
+  timestamp: string;
+  status: 'DELIVERED' | 'SIMULATED';
+  details: {
+    previousScore?: number;
+    newScore?: number;
+    scoreDiff?: number;
+    accountName?: string;
+    accountMasked?: string;
+    bureau?: string;
+    disputeOutcome?: 'RECTIFIED' | 'RESOLVED_NOC' | 'REJECTED_DISPUTED' | 'ESCALATED_OMBUDSMAN' | 'UNDER_REVIEW';
+    actionRequired?: string;
+  };
+}
+
+
