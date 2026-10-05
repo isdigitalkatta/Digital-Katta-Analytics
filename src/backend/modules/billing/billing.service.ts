@@ -59,21 +59,19 @@ export interface VerificationResult {
   error?: string;
 }
 
-// Default fallback secret for development/staging environments
-export const DEFAULT_BILLING_SECRET = 'dk_billing_sec_live_2026';
-
-export function getBillingSecrets(): { serverSecret: string; razorpaySecret: string | null } {
+export function getBillingSecrets(): { serverSecret: string; razorpaySecret: string | null; isProduction: boolean } {
+  const isProduction = process.env.NODE_ENV === 'production';
   const serverSecret =
     process.env.BILLING_WEBHOOK_SECRET?.trim() ||
     process.env.SERVER_SECRET?.trim() ||
-    DEFAULT_BILLING_SECRET;
+    (isProduction ? '' : 'dev_billing_secret_staging_only');
 
   const razorpaySecret =
     process.env.RAZORPAY_WEBHOOK_SECRET?.trim() ||
     process.env.RAZORPAY_KEY_SECRET?.trim() ||
     null;
 
-  return { serverSecret, razorpaySecret };
+  return { serverSecret, razorpaySecret, isProduction };
 }
 
 /**
@@ -81,7 +79,9 @@ export function getBillingSecrets(): { serverSecret: string; razorpaySecret: str
  */
 export function isValidServerSecret(secretInput?: string | null): boolean {
   if (!secretInput) return false;
-  const { serverSecret } = getBillingSecrets();
+  const { serverSecret, isProduction } = getBillingSecrets();
+  if (!serverSecret || (isProduction && serverSecret.length < 16)) return false;
+
   const inputClean = secretInput.trim();
   if (!inputClean) return false;
 
@@ -94,7 +94,7 @@ export function isValidServerSecret(secretInput?: string | null): boolean {
     }
   }
 
-  return inputClean === serverSecret;
+  return false;
 }
 
 /**
@@ -107,8 +107,8 @@ export function isValidRazorpaySignature(
   if (!signature || !rawBody) return false;
   const { razorpaySecret } = getBillingSecrets();
   if (!razorpaySecret) {
-    // If Razorpay secret not set in environment, check if signature format is valid test token
-    return signature.length >= 32;
+    // In production or sandbox, if Razorpay secret is not set, refuse signature verification
+    return false;
   }
 
   try {
@@ -217,8 +217,8 @@ export async function processMarkPaidAndSync(
   let amount = Number(payload.amountPaid) || 1999;
   let packageName = payload.packageName || 'Comprehensive CIBIL Dispute Resolution';
   let transactionId = payload.transactionId || payload.paymentId || `TXN_WEBHOOK_${Date.now()}`;
-  let expert = payload.assignedCreditExpert || 'Adv. Ramesh Patil';
-  let assistant = payload.assignedPartnerAssistant || 'Pooja Deshmukh';
+  let expert = payload.assignedCreditExpert || 'Senior Dispute Counsel';
+  let assistant = payload.assignedPartnerAssistant || 'Lead Desk Officer';
   let remarks = payload.remarks;
 
   if (payload.event && payload.payload?.payment?.entity) {

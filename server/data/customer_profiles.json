@@ -1,13 +1,13 @@
 [
   {
     "userId": "usr_em_72616a657368",
-    "fullName": "Rajesh Kumar Sharma",
+    "fullName": "Demo Borrower",
     "phone": "+91 9876543210",
     "dob": "1988-05-14",
     "pan": "ABCDE1234F",
     "gender": "Male",
     "creditBureau": "CIBIL",
-    "email": "rajesh.sharma@example.com",
+    "email": "someone@example.com",
     "city": "Pune",
     "state": "Maharashtra",
     "pincode": "411001",

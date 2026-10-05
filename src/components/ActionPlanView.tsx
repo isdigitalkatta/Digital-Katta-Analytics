@@ -341,41 +341,87 @@ export const ActionPlanView: React.FC<ActionPlanViewProps> = ({ actionPlan, onNa
                   const isDone = !!completedTasks[taskId];
 
                   return (
-                    <div
+                    <motion.div
                       key={taskId}
+                      layout="position"
                       onClick={() => toggleTask(taskId, task)}
-                      className={`p-3.5 rounded-xl border transition-all flex items-start gap-3 cursor-pointer text-xs select-none ${
+                      whileHover={{ scale: 1.008 }}
+                      whileTap={{ scale: 0.992 }}
+                      className={`p-3.5 rounded-xl border transition-colors flex items-start gap-3 cursor-pointer text-xs select-none ${
                         isDone
                           ? 'bg-emerald-50/50 border-emerald-200/80 text-slate-500'
                           : 'bg-white border-slate-200/80 hover:border-orange-300 text-slate-800 hover:shadow-2xs'
                       }`}
                     >
-                      <motion.button
-                        type="button"
-                        whileTap={{ scale: 0.82 }}
-                        className="mt-0.5 shrink-0 cursor-pointer focus:outline-hidden"
+                      {/* Interactive Animated Checkbox */}
+                      <motion.div
+                        className="relative mt-0.5 shrink-0 flex items-center justify-center"
+                        whileHover={{ scale: 1.15 }}
+                        whileTap={{ scale: 0.85 }}
                       >
-                        {isDone ? (
-                          <motion.div
-                            initial={{ scale: 0.7 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', stiffness: 350, damping: 15 }}
-                          >
-                            <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          </motion.div>
-                        ) : (
-                          <Circle className="w-4 h-4 text-slate-300 hover:text-orange-500 transition-colors" />
+                        {/* Ripple pulse on completion */}
+                        {isDone && (
+                          <motion.span
+                            initial={{ scale: 0.7, opacity: 0.8 }}
+                            animate={{ scale: 2, opacity: 0 }}
+                            transition={{ duration: 0.45, ease: 'easeOut' }}
+                            className="absolute inset-0 rounded-full bg-emerald-400/40 pointer-events-none"
+                          />
                         )}
-                      </motion.button>
-                      <span className={`leading-relaxed font-medium flex-1 ${isDone ? 'line-through opacity-85' : ''}`}>
+
+                        <div
+                          className={`w-5 h-5 rounded-lg flex items-center justify-center transition-all ${
+                            isDone
+                              ? 'bg-emerald-600 text-white shadow-xs'
+                              : 'border-2 border-slate-300 hover:border-[#FF6A00] bg-white'
+                          }`}
+                        >
+                          <AnimatePresence mode="wait">
+                            {isDone && (
+                              <motion.svg
+                                key="checked-icon"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="3.2"
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                className="w-3.5 h-3.5 text-white"
+                                initial={{ scale: 0.4, opacity: 0 }}
+                                animate={{ scale: 1, opacity: 1 }}
+                                exit={{ scale: 0.4, opacity: 0 }}
+                                transition={{ type: 'spring', stiffness: 450, damping: 20 }}
+                              >
+                                <motion.path
+                                  d="M 5 12 L 10 17 L 19 7"
+                                  initial={{ pathLength: 0 }}
+                                  animate={{ pathLength: 1 }}
+                                  transition={{ duration: 0.22, ease: 'easeOut' }}
+                                />
+                              </motion.svg>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      </motion.div>
+
+                      <span className={`leading-relaxed font-medium flex-1 transition-opacity ${isDone ? 'line-through opacity-85' : ''}`}>
                         {task}
                       </span>
-                      {isDone && (
-                        <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0">
-                          Done
-                        </span>
-                      )}
-                    </div>
+
+                      <AnimatePresence>
+                        {isDone && (
+                          <motion.span
+                            initial={{ scale: 0.6, opacity: 0 }}
+                            animate={{ scale: 1, opacity: 1 }}
+                            exit={{ scale: 0.6, opacity: 0 }}
+                            transition={{ type: 'spring', stiffness: 350, damping: 18 }}
+                            className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full shrink-0"
+                          >
+                            Done
+                          </motion.span>
+                        )}
+                      </AnimatePresence>
+                    </motion.div>
                   );
                 })}
               </div>

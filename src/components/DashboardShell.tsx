@@ -40,6 +40,7 @@ export type DashboardTab =
   | 'history'
   | 'utilization'
   | 'enquiries'
+  | 'accounts'
   | 'letter'
   | 'export'
   | 'admin';
@@ -50,9 +51,11 @@ interface DashboardShellProps {
   children: React.ReactNode;
   negativeAccountsCount?: number;
   disputeCount?: number;
+  instantDisputeCount?: number;
   onToggleChat?: () => void;
   isChatOpen?: boolean;
   onDownloadPdf?: () => void;
+  borrowerName?: string;
 }
 
 export const DashboardShell: React.FC<DashboardShellProps> = ({
@@ -61,13 +64,15 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
   children,
   negativeAccountsCount = 0,
   disputeCount = 0,
+  instantDisputeCount = 0,
   onToggleChat,
   isChatOpen = false,
   onDownloadPdf,
+  borrowerName,
 }) => {
   const { user, logout, isStaff, staffRole } = useAuth();
   const { t } = useAppLanguage();
-  const userName = user?.name || 'Sagar Dhumal';
+  const userName = borrowerName || (user && !user.isDemo ? user.name : 'Demo Borrower');
   const [isMobileDrawerOpen, setIsMobileDrawerOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [isNotificationsOpen, setIsNotificationsOpen] = useState(false);
@@ -84,26 +89,24 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
       id: 'disputes' as DashboardTab,
       label: t('nav.disputeSupport', 'Dispute Support'),
       icon: FileCheck2,
-      badge: disputeCount > 0 ? disputeCount : undefined,
+      badge: instantDisputeCount > 0 ? `⚡ ${instantDisputeCount} Instant` : (disputeCount > 0 ? `${disputeCount}` : undefined),
+      isInstantBadge: instantDisputeCount > 0,
     },
     { id: 'resources' as DashboardTab, label: t('nav.resources', 'Resources'), icon: BookOpen },
     { id: 'profile' as DashboardTab, label: t('nav.profile', 'Profile'), icon: User },
-    ...(isStaff
-      ? [
-          {
-            id: 'admin' as DashboardTab,
-            label: t('nav.staffCrm', `Staff CRM (${staffRole || 'Active'})`),
-            icon: FileSpreadsheet,
-            badge: staffRole ? staffRole.slice(0, 5) : 'STAFF',
-          },
-        ]
-      : []),
   ];
 
   // Helper to determine active status including secondary sub-tabs
   const isNavActive = (tabId: DashboardTab) => {
     if (currentTab === tabId) return true;
-    if (tabId === 'analysis' && (currentTab === 'negative' || currentTab === 'history' || currentTab === 'utilization' || currentTab === 'enquiries')) {
+    if (
+      tabId === 'analysis' &&
+      (currentTab === 'negative' ||
+        currentTab === 'history' ||
+        currentTab === 'utilization' ||
+        currentTab === 'enquiries' ||
+        currentTab === 'accounts')
+    ) {
       return true;
     }
     if (tabId === 'disputes' && currentTab === 'letter') {
@@ -154,7 +157,13 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                   </div>
 
                   {item.badge !== undefined && (
-                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-orange-100 text-[#FF6A00]">
+                    <span
+                      className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                        item.isInstantBadge
+                          ? 'bg-amber-500 text-white shadow-2xs'
+                          : 'bg-orange-100 text-[#FF6A00]'
+                      }`}
+                    >
                       {item.badge}
                     </span>
                   )}
@@ -164,43 +173,8 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
           </nav>
         </div>
 
-        {/* Bottom: CRM Quick Launcher (Staff Only) & Logout pinned */}
+        {/* Bottom: Ask AI Bot & Logout pinned */}
         <div className="p-4 border-t border-[#E8ECF0] space-y-2">
-          {/* CRM Quick Launcher Button - Staff Only */}
-          {isStaff && (
-            <button
-              onClick={() => onSelectTab('admin')}
-              className={`w-full flex items-center justify-between p-2.5 rounded-2xl border transition-all cursor-pointer text-left ${
-                currentTab === 'admin'
-                  ? 'bg-[#1c3859] text-white border-[#1c3859] shadow-xs'
-                  : 'bg-slate-50 hover:bg-blue-50/70 border-slate-200/80 text-slate-800'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
-                  currentTab === 'admin' ? 'bg-white/20 text-white' : 'bg-[#1c3859] text-white'
-                }`}>
-                  <FileSpreadsheet className="w-4 h-4" />
-                </div>
-                <div>
-                  <p className={`text-xs font-bold leading-tight ${currentTab === 'admin' ? 'text-white' : 'text-slate-900'}`}>
-                    Staff CRM
-                  </p>
-                  <p className={`text-[10px] ${currentTab === 'admin' ? 'text-blue-200' : 'text-slate-400'}`}>
-                    {staffRole || 'Active'} Portal
-                  </p>
-                </div>
-              </div>
-              <span className={`px-2 py-0.5 rounded-full text-[9px] font-bold ${
-                currentTab === 'admin'
-                  ? 'bg-white/20 text-white'
-                  : 'bg-blue-100 text-blue-900'
-              }`}>
-                {staffRole || 'STAFF'}
-              </span>
-            </button>
-          )}
-
           {onToggleChat && (
             <button
               onClick={onToggleChat}
@@ -263,6 +237,17 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                         <Icon className={`w-5 h-5 ${active ? 'text-[#F56B2B]' : 'text-slate-400'}`} />
                         <span>{item.label}</span>
                       </div>
+                      {item.badge !== undefined && (
+                        <span
+                          className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full ${
+                            item.isInstantBadge
+                              ? 'bg-amber-500 text-white shadow-2xs'
+                              : 'bg-orange-100 text-[#FF6A00]'
+                          }`}
+                        >
+                          {item.badge}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -411,7 +396,7 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               )}
             </div>
 
-            {/* User Avatar Photo + Name ("Sagar Dhumal") + Chevron */}
+            {/* User Avatar + Name + Chevron */}
             <div className="relative">
               <button
                 onClick={() => setIsUserMenuOpen(!isUserMenuOpen)}
@@ -419,17 +404,15 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
               >
                 {/* User Avatar Photo / Graphic */}
                 <div className="w-10 h-10 rounded-full bg-[#EA580C] text-white flex items-center justify-center font-bold text-sm shadow-xs border-2 border-orange-200 overflow-hidden shrink-0">
-                  {/* Styled Avatar Portrait representation */}
-                  <img
-                    src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=100&auto=format&fit=crop&q=80"
-                    alt={userName}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      // Fallback initials
-                      (e.target as HTMLElement).style.display = 'none';
-                    }}
-                  />
-                  <span>{userName.charAt(0)}</span>
+                  {user?.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={userName}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <span>{userName.trim().charAt(0).toUpperCase() || 'B'}</span>
+                  )}
                 </div>
 
                 <div className="hidden sm:block text-left">
@@ -477,18 +460,6 @@ export const DashboardShell: React.FC<DashboardShellProps> = ({
                     <Bell className="w-4 h-4 text-[#FF6A00]" />
                     <span>{t("common.monitoredAlerts", "Email Alerts & Monitoring")}</span>
                   </button>
-                  {isStaff && (
-                    <button
-                      onClick={() => {
-                        onSelectTab('admin');
-                        setIsUserMenuOpen(false);
-                      }}
-                      className="w-full px-3 py-2 rounded-xl text-xs font-semibold flex items-center gap-2 cursor-pointer transition-colors text-[#1c3859] hover:bg-blue-50 font-bold"
-                    >
-                      <FileSpreadsheet className="w-4 h-4 text-[#1c3859]" />
-                      <span>{`Staff CRM (${staffRole || 'Active'})`}</span>
-                    </button>
-                  )}
                   <div className="border-t border-slate-100 my-1" />
                   <button
                     onClick={() => {

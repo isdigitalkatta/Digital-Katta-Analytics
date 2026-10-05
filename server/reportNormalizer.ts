@@ -229,7 +229,7 @@ export function normalizeExtractedReport(raw: any, fileName: string = 'credit_re
     accounts,
     enquiries,
     summary,
-    rawSourceType: 'PDF_AI_EXTRACTED',
+    rawSourceType: (fileName.endsWith('.json') ? 'JSON' : fileName.endsWith('.html') ? 'HTML' : 'PDF') as 'PDF' | 'HTML' | 'JSON' | 'DEMO',
     fileName,
     parsedAt: new Date().toISOString(),
   };

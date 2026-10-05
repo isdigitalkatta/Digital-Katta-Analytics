@@ -124,7 +124,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectDemo('stressed')}
               className="w-full text-left p-2 rounded-lg hover:bg-slate-50 transition-colors text-xs cursor-pointer"
             >
-              <div className="font-semibold text-rose-700">Arun Kumar (Score: 618)</div>
+              <div className="font-semibold text-rose-700">Stressed Profile (Score: 618)</div>
               <div className="text-[11px] text-slate-500">
                 {t('upload.stressedDemoBtn')}
               </div>
@@ -133,7 +133,7 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={() => onSelectDemo('good')}
               className="w-full text-left p-2 rounded-lg hover:bg-slate-50 transition-colors text-xs cursor-pointer mt-1"
             >
-              <div className="font-semibold text-emerald-700">Priya Sharma (Score: 785)</div>
+              <div className="font-semibold text-emerald-700">Prime Profile (Score: 785)</div>
               <div className="text-[11px] text-slate-500">
                 {t('upload.goodDemoBtn')}
               </div>

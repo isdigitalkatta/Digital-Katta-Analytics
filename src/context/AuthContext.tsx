@@ -49,6 +49,7 @@ interface AuthContextType {
   loginAsDemo: (customInfo?: { email?: string; name?: string; phone?: string; identifier?: string }) => Promise<{ success: boolean; user?: User; error?: string }>;
   loginAsStaff: (role: StaffRole, email?: string) => Promise<{ success: boolean; error?: string }>;
   switchStaffRole: (role: StaffRole) => Promise<{ success: boolean; error?: string }>;
+  syncUploadedBorrowerName: (name: string, email?: string, phone?: string, pan?: string) => Promise<void>;
   logout: () => void;
   getAuthHeaders: () => Record<string, string>;
   authenticatedFetch: (url: string, init?: RequestInit) => Promise<Response>;
@@ -419,6 +420,63 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     return loginAsStaff(role);
   };
 
+  const syncUploadedBorrowerName = async (name: string, email?: string, phone?: string, pan?: string) => {
+    if (!name || !name.trim()) return;
+    const trimmed = name.trim();
+
+    try {
+      localStorage.setItem('digitalkatta_uploaded_borrower_name', trimmed);
+    } catch (_) {}
+
+    setUser((prev) => {
+      const updated: User = prev
+        ? { ...prev, name: trimmed }
+        : {
+            id: 'borrower_uploaded',
+            email: email || 'someone@example.com',
+            name: trimmed,
+            phone: phone || '+91 98201 23456',
+            provider: 'demo',
+            role: 'user',
+            isDemo: false,
+            createdAt: new Date().toISOString(),
+          };
+      try {
+        localStorage.setItem(USER_KEY, JSON.stringify(updated));
+      } catch (_) {}
+      return updated;
+    });
+
+    setCustomerProfile((prev) => {
+      if (!prev) return prev;
+      return { ...prev, fullName: trimmed, pan: pan || prev.pan };
+    });
+
+    if (token) {
+      try {
+        const res = await fetch('/api/user/sync-borrower', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({ name: trimmed, email, phone, pan }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.user) {
+            setUser(data.user);
+            localStorage.setItem(USER_KEY, JSON.stringify(data.user));
+          }
+          if (data.token) {
+            setToken(data.token);
+            localStorage.setItem(TOKEN_KEY, data.token);
+          }
+        }
+      } catch (_) {}
+    }
+  };
+
   const logout = () => {
     fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
     localStorage.removeItem(TOKEN_KEY);
@@ -517,7 +575,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           user.email.toLowerCase() === 'leads@digitalkatta.com' ||
           user.email.toLowerCase() === 'creditexpert@digitalkatta.com' ||
           user.email.toLowerCase() === 'expert@digitalkatta.com' ||
-          user.email.toLowerCase().endsWith('@digitalkatta.com')
+          user.email.toLowerCase().startsWith('staff.') ||
+          user.email.toLowerCase().startsWith('admin.')
         )))
   );
 
@@ -531,7 +590,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return user.role as StaffRole;
     }
     if (user.role === 'admin') return 'ADMIN';
-    if (email && email.endsWith('@digitalkatta.com')) {
+    if (email && (email.startsWith('staff.') || email.startsWith('admin.')) && email.endsWith('@digitalkatta.com')) {
       if (email.includes('lead') || email.includes('desk')) return 'LEAD_HANDLER';
       if (email.includes('expert') || email.includes('analyst')) return 'CREDIT_EXPERT';
       return 'ADMIN';
@@ -570,6 +629,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         loginAsDemo,
         loginAsStaff,
         switchStaffRole,
+        syncUploadedBorrowerName,
         logout,
         getAuthHeaders,
         authenticatedFetch,

@@ -78,9 +78,18 @@ export function validateEnvironment(): {
 } {
   const isProduction = process.env.NODE_ENV === 'production';
   const hasGeminiKey = !!process.env.GEMINI_API_KEY;
-  const fallbackSecret = 'digitalkatta-production-default-jwt-session-secret-key-2026-secure';
   const rawSecret = process.env.JWT_SECRET?.trim();
-  const jwtSecret = rawSecret && rawSecret.length >= 32 ? rawSecret : (rawSecret || fallbackSecret);
+
+  if (isProduction) {
+    if (!rawSecret || rawSecret.length < 32) {
+      throw new Error(
+        'FATAL SECURITY ERROR: JWT_SECRET environment variable is missing or under 32 characters in production. Boot refused. Configure a cryptographically secure JWT_SECRET (>= 32 chars) in environment variables.'
+      );
+    }
+  }
+
+  const fallbackDevSecret = 'digitalkatta-dev-session-secret-key-only-32-chars-long';
+  const jwtSecret = rawSecret && rawSecret.length >= 32 ? rawSecret : (rawSecret || fallbackDevSecret);
 
   if (!hasGeminiKey) {
     console.warn(
@@ -94,11 +103,11 @@ export function validateEnvironment(): {
     );
   }
 
-  // Graceful warning for JWT_SECRET
+  // Warning in non-production environments when fallback is used
   if (!rawSecret || rawSecret.length < 32) {
     console.warn(
       '\x1b[33m%s\x1b[0m',
-      '[Digital Katta Security Notice] JWT_SECRET is not configured or is under 32 characters. Using a default fallback secret for session tokens. For custom security, configure JWT_SECRET (32+ chars) in environment variables.'
+      '[Digital Katta Security Notice] Non-production environment: JWT_SECRET is not configured or is under 32 characters. Using temporary dev secret for local evaluation.'
     );
   }
 

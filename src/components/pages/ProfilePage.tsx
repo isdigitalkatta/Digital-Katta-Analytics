@@ -26,9 +26,18 @@ import {
 import { useAuth } from '../../context/AuthContext';
 import { CustomerProfileModal } from '../CustomerProfileModal';
 import { AlertSubscriptionModal } from '../alerts/AlertSubscriptionModal';
-import { AlertSubscription } from '../../types';
+import { AlertSubscription, NormalizedCreditReport } from '../../types';
 
-export const ProfilePage: React.FC = () => {
+interface ProfilePageProps {
+  report?: NormalizedCreditReport | null;
+  borrowerName?: string;
+  onEditProfile?: () => void;
+}
+
+export const ProfilePage: React.FC<ProfilePageProps> = ({
+  report,
+  borrowerName,
+}) => {
   const { user, customerProfile, isProfileComplete, logout, authenticatedFetch } = useAuth();
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
@@ -76,14 +85,20 @@ export const ProfilePage: React.FC = () => {
     }
   };
 
-  const userName = customerProfile?.fullName || user?.name || 'Customer';
-  const userEmail = customerProfile?.email || user?.email || 'Not provided';
-  const userPhone = customerProfile?.phone || user?.phone || 'Not provided';
-  const userPan = customerProfile?.pan || 'Not provided';
-  const userDob = customerProfile?.dob || 'Not provided';
-  const userGender = customerProfile?.gender || 'Not specified';
-  const userBureau = customerProfile?.creditBureau || 'CIBIL';
-  const addressLine = [customerProfile?.city, customerProfile?.state, customerProfile?.pincode ? `PIN: ${customerProfile.pincode}` : '']
+  const isReportUploaded = Boolean(report && report.rawSourceType !== 'DEMO' && report.personal?.name);
+  const uploadedName = isReportUploaded ? report?.personal?.name : borrowerName;
+  const userName = (isReportUploaded ? uploadedName : (customerProfile?.fullName || uploadedName || (!user?.isDemo ? user?.name : ''))) || 'Demo Borrower';
+  const userEmail = customerProfile?.email || (isReportUploaded && report?.personal?.email ? report.personal.email : user?.email) || 'someone@example.com';
+  const userPhone = customerProfile?.phone || (isReportUploaded && report?.personal?.phone ? report.personal.phone : user?.phone) || 'Not provided';
+  const userPan = customerProfile?.pan || (isReportUploaded && (report?.personal?.panMasked || report?.personal?.pan)) || 'Not provided';
+  const userDob = customerProfile?.dob || (isReportUploaded && report?.personal?.dateOfBirth) || 'Not provided';
+  const userGender = customerProfile?.gender || (isReportUploaded && report?.personal?.gender) || 'Not specified';
+  const userBureau = customerProfile?.creditBureau || (isReportUploaded ? 'CIBIL' : 'CIBIL');
+  const addressLine = [
+    customerProfile?.city || (isReportUploaded ? report?.personal?.city : undefined),
+    customerProfile?.state || (isReportUploaded ? report?.personal?.state : undefined),
+    customerProfile?.pincode ? `PIN: ${customerProfile.pincode}` : '',
+  ]
     .filter(Boolean)
     .join(', ');
 

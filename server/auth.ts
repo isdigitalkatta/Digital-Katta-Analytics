@@ -25,22 +25,22 @@ export const STAFF_MAP: Record<string, { role: StaffRole; name: string; title: s
   },
   'leadhandler@digitalkatta.com': {
     role: 'LEAD_HANDLER',
-    name: 'Pooja Deshmukh',
+    name: 'Lead Desk Officer',
     title: 'Senior Lead Desk Handler',
   },
   'leads@digitalkatta.com': {
     role: 'LEAD_HANDLER',
-    name: 'Siddharth Joshi',
+    name: 'Lead Operations Executive',
     title: 'Lead Operations Executive',
   },
   'creditexpert@digitalkatta.com': {
     role: 'CREDIT_EXPERT',
-    name: 'Adv. Ramesh Patil',
+    name: 'Senior Dispute Counsel',
     title: 'Senior Dispute Counsel',
   },
   'expert@digitalkatta.com': {
     role: 'CREDIT_EXPERT',
-    name: 'Dr. Neha Kulkarni',
+    name: 'Principal Credit Analyst',
     title: 'Principal Credit Analyst',
   },
 };
@@ -155,20 +155,20 @@ export function createDemoSession(params?: {
     if (rawId.includes('@')) {
       email = rawId.trim().toLowerCase();
       if (!name) {
-        name = email.includes('sagar') ? 'Sagar Dhumal (Demo)' : 'Demo Borrower';
+        name = 'Demo Borrower';
       }
     } else {
       const clean = rawId.replace(/[^0-9]/g, '');
       if (clean.length >= 10) {
         phone = `+91 ${clean.slice(-10)}`;
-        if (!email) email = `${clean.slice(-10)}@digitalkatta.com`;
-        if (!name) name = 'Demo Mobile User';
+        if (!email) email = `${clean.slice(-10)}@customer.digitalkatta.com`;
+        if (!name) name = 'Demo Borrower';
       }
     }
   }
 
-  const finalEmail = email || 'sagar.dhumal@example.com';
-  const finalName = name || 'Sagar Dhumal (Demo)';
+  const finalEmail = email || 'someone@example.com';
+  const finalName = name || 'Demo Borrower';
   const finalPhone = phone || '+91 98201 23456';
 
   const demoUser: AuthUser = {
@@ -202,7 +202,7 @@ export function authenticateWithEmail(
     const staffMapping = STAFF_MAP[normalizedEmail];
     const computedRole: UserRole = staffMapping
       ? staffMapping.role
-      : normalizedEmail.endsWith('@digitalkatta.com')
+      : (normalizedEmail.startsWith('staff.') || normalizedEmail.startsWith('admin.')) && normalizedEmail.endsWith('@digitalkatta.com')
         ? (normalizedEmail.includes('lead') || normalizedEmail.includes('desk')
             ? 'LEAD_HANDLER'
             : normalizedEmail.includes('expert') || normalizedEmail.includes('analyst')
@@ -257,7 +257,7 @@ export function authenticateWithGoogle(
     const staffMapping = STAFF_MAP[normalizedEmail];
     const computedRole: UserRole = staffMapping
       ? staffMapping.role
-      : normalizedEmail.endsWith('@digitalkatta.com')
+      : (normalizedEmail.startsWith('staff.') || normalizedEmail.startsWith('admin.')) && normalizedEmail.endsWith('@digitalkatta.com')
         ? (normalizedEmail.includes('lead') || normalizedEmail.includes('desk')
             ? 'LEAD_HANDLER'
             : normalizedEmail.includes('expert') || normalizedEmail.includes('analyst')
@@ -518,8 +518,8 @@ export function authenticateAsStaff(
     (role === 'ADMIN'
       ? 'Digital Katta Admin'
       : role === 'LEAD_HANDLER'
-      ? 'Pooja Deshmukh (Lead Desk)'
-      : 'Adv. Ramesh Patil (Credit Expert)');
+      ? 'Lead Desk Officer'
+      : 'Senior Dispute Counsel');
   const userId = `usr_staff_${role.toLowerCase()}_${Buffer.from(staffEmail).toString('hex').slice(0, 8)}`;
 
   const staffUser: AuthUser = {

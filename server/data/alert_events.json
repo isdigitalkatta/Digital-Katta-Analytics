@@ -4,7 +4,7 @@
     "type": "DISPUTE_OUTCOME",
     "title": "✅ Dispute Outcome: Inaccurate Overdue Removed by Lender",
     "message": "HDFC Bank has rectified the erroneous 90+ DPD overdue on Credit Card #4129. Account status updated to STD (Standard / Clean).",
-    "recipientEmail": "sagar.dhumal@example.com",
+    "recipientEmail": "someone@example.com",
     "status": "DELIVERED",
     "details": {
       "accountName": "HDFC Bank Credit Card",
@@ -21,7 +21,7 @@
     "type": "SCORE_CHANGE",
     "title": "📈 CIBIL Score Increase Detected (+24 Points)",
     "message": "Great news! Your monitored TransUnion CIBIL score increased from 672 to 696 (+24 points) following timely payment reporting.",
-    "recipientEmail": "sagar.dhumal@example.com",
+    "recipientEmail": "someone@example.com",
     "status": "DELIVERED",
     "details": {
       "previousScore": 672,

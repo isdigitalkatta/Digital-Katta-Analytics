@@ -5,12 +5,12 @@ import { NormalizedCreditReport } from '../../types.js';
  */
 export const goldenCibilCleanReport: NormalizedCreditReport = {
   personal: {
-    name: 'Ananya Sharma',
+    name: 'Demo Borrower #1',
     panMasked: 'ABCDE1234F',
     dateOfBirth: '14/05/1992',
     gender: 'Female',
     mobileMasked: '98765****0',
-    emailMasked: 'ananya****@gmail.com',
+    emailMasked: 'demo****@example.com',
     address: 'Bandra West, Mumbai, Maharashtra',
     reportDate: '10/08/2026',
     reportNumber: 'CIBIL-2026-0810-77491',
@@ -114,12 +114,12 @@ export const goldenCibilCleanReport: NormalizedCreditReport = {
  */
 export const goldenExperianStressedReport: NormalizedCreditReport = {
   personal: {
-    name: 'Vikramjit Roy',
+    name: 'Demo Borrower #2',
     panMasked: 'VWXYZ5678G',
     dateOfBirth: '22/11/1985',
     gender: 'Male',
     mobileMasked: '98200****1',
-    emailMasked: 'vikram****@rediffmail.com',
+    emailMasked: 'demo****@example.com',
     address: 'Salt Lake, Kolkata, West Bengal',
     reportDate: '12/08/2026',
     reportNumber: 'EXP-IND-2026-9921',

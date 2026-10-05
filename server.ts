@@ -45,6 +45,7 @@ import {
   pdfExportLimiter,
 } from './server/rateLimit.js';
 import { generateCreditReportPdf } from './server/pdfGenerator.js';
+import { brotliGzipCompressionMiddleware } from './server/compression.js';
 import { sheetsRouter } from './src/backend/modules/sheets/sheets.routes.js';
 import {
   upsertLead,
@@ -61,6 +62,8 @@ const PORT = 3000;
 
 // Security Headers & Content-Type validation
 app.use(applySecurityHeaders);
+// High-performance Brotli & Gzip compression for all JSON, HTML, and JS responses
+app.use(brotliGzipCompressionMiddleware);
 app.use(express.json({ limit: '20mb' }));
 
 // Google Sheets CRM Sync Routes (Admin endpoints)
@@ -246,7 +249,7 @@ app.post('/api/auth/login', async (req, res) => {
     return res.status(400).json({ error: 'A valid email address or mobile number is required for authentication.' });
   }
 
-  const effectiveEmail = targetEmail || `${targetPhone}@digitalkatta.com`;
+  const effectiveEmail = targetEmail || `${targetPhone}@customer.digitalkatta.com`;
   const inferredName = name || (targetEmail ? targetEmail.split('@')[0].replace('.', ' ') : 'Customer');
   const session = authenticateWithEmail(
     effectiveEmail,
@@ -477,7 +480,7 @@ app.get(
               <label for="email">Google Email Address</label>
               <input type="email" id="email" placeholder="e.g. yourname@gmail.com" required autofocus />
               <label for="name">Full Name (optional)</label>
-              <input type="text" id="name" placeholder="e.g. Sagar Dhumal" />
+              <input type="text" id="name" placeholder="e.g. Full Name" />
               <button type="submit" id="submitBtn">Sign In with Google</button>
             </form>
           </div>
@@ -866,6 +869,44 @@ app.post(['/api/profile', '/api/user/profile'], requireAuth, async (req, res) =>
     });
   } catch (err: any) {
     res.status(500).json({ error: err?.message || 'Failed to save customer profile.' });
+  }
+});
+
+// Sync borrower name directly when a credit report is uploaded
+app.post('/api/user/sync-borrower', requireAuth, async (req, res) => {
+  try {
+    const user = req.user!;
+    const { name, pan, phone, email } = req.body || {};
+    if (name && typeof name === 'string' && name.trim().length >= 2) {
+      const trimmedName = name.trim();
+      user.name = trimmedName;
+      const existingProfile = getProfileByUserId(user.id);
+      if (existingProfile) {
+        existingProfile.fullName = trimmedName;
+        if (pan && !existingProfile.pan) existingProfile.pan = pan.trim().toUpperCase();
+        saveProfile(user.id, existingProfile);
+      }
+      updateUserProfileInAuth(user.id, {
+        fullName: trimmedName,
+        userId: user.id,
+        phone: phone || user.phone || '+91 98201 23456',
+        dob: existingProfile?.dob || '1990-01-01',
+        pan: pan || existingProfile?.pan || 'ABCDE1234F',
+        gender: existingProfile?.gender || 'Prefer not to say',
+        creditBureau: existingProfile?.creditBureau || 'CIBIL',
+        completedAt: existingProfile?.completedAt || new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      const updatedUser: AuthUser = {
+        ...user,
+        name: trimmedName,
+      };
+      const newToken = generateToken(updatedUser);
+      return res.json({ success: true, user: updatedUser, token: newToken });
+    }
+    return res.json({ success: true, user });
+  } catch (err: any) {
+    res.status(500).json({ error: err?.message || 'Failed to sync borrower name.' });
   }
 });
 
@@ -1461,9 +1502,22 @@ Return ONLY a valid JSON object matching the requested schema with all fields.
     // Validate and coerce with Zod
     const validationResult = AIAnalysisSchema.safeParse(parsedJson);
     if (validationResult.success) {
+      // Prioritize and preserve deterministic clerical error and instant dispute candidates
+      const baseInstantDisputes = (deterministicBaseline?.disputeOpportunities || []).filter(
+        (d: any) => d.isInstantDisputeCandidate || d.isClericalError
+      );
+      const aiDisputes = (validationResult.data.disputeOpportunities || []).filter(
+        (d: any) => !baseInstantDisputes.some((b: any) => b.id === d.id || (d.accountId && b.accountId === d.accountId))
+      );
+      const mergedDisputes = [...baseInstantDisputes, ...aiDisputes];
+
       const finalResult = {
         ...(deterministicBaseline || {}),
         ...validationResult.data,
+        disputeOpportunities: mergedDisputes,
+        clericalErrorsCount: deterministicBaseline?.clericalErrorsCount ?? baseInstantDisputes.length,
+        instantDisputeCount: deterministicBaseline?.instantDisputeCount ?? baseInstantDisputes.length,
+        clericalErrorsList: deterministicBaseline?.clericalErrorsList ?? baseInstantDisputes,
         generatedByAI: true,
       };
       syncReportAnalysisToCrm(req.user, report, finalResult);

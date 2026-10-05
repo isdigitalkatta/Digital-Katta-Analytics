@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion } from 'motion/react';
 import {
   Lightbulb,
   ArrowRight,
@@ -17,26 +18,57 @@ import {
   TrendingUp,
   Zap,
   ArrowUpRight,
+  Layers,
+  MapPin,
+  Scale,
+  Sparkles,
 } from 'lucide-react';
-import { NormalizedCreditReport, AIAnalysisResult } from '../../types';
+import { NormalizedCreditReport, AIAnalysisResult, CreditAccount, DisputeOpportunity } from '../../types';
 import { downloadAiAnalysisReportPdf } from '../../utils/pdfExport';
+import { scanReportForClericalErrors } from '../../utils/clericalErrorScanner';
 import { useAppLanguage } from '../../hooks/useAppLanguage';
+import { AccountsListView } from '../AccountsListView';
 
 interface AnalysisPageProps {
   report: NormalizedCreditReport | null;
   analysis: AIAnalysisResult | null;
   onNavigate: (tab: string) => void;
+  onDraftLetter?: (account: CreditAccount) => void;
+  onDraftDisputeLetter?: (dispute: DisputeOpportunity) => void;
 }
 
 export const AnalysisPage: React.FC<AnalysisPageProps> = ({
   report,
   analysis,
   onNavigate,
+  onDraftLetter,
+  onDraftDisputeLetter,
 }) => {
   const { t } = useAppLanguage();
   const [isDownloadingPdf, setIsDownloadingPdf] = useState(false);
   const [downloadProgress, setDownloadProgress] = useState<string>('');
   const [downloadSuccess, setDownloadSuccess] = useState(false);
+
+  // Auto-scan uploaded report for clerical errors to identify Instant Dispute candidates
+  const instantDisputes =
+    (analysis?.disputeOpportunities || []).filter((d) => d.isInstantDisputeCandidate || d.isClericalError).length > 0
+      ? (analysis?.disputeOpportunities || []).filter((d) => d.isInstantDisputeCandidate || d.isClericalError)
+      : report
+      ? scanReportForClericalErrors(report)
+      : [];
+
+  const duplicateCount = instantDisputes.filter(
+    (d) => d.clericalDetails?.category === 'DUPLICATE_ACCOUNT' || d.issue.toLowerCase().includes('duplicate')
+  ).length;
+  const addressCount = instantDisputes.filter(
+    (d) => d.clericalDetails?.category === 'ADDRESS_INACCURACY' || d.issue.toLowerCase().includes('address') || d.issue.toLowerCase().includes('pin')
+  ).length;
+  const dobCount = instantDisputes.filter(
+    (d) => d.clericalDetails?.category === 'DATE_OF_BIRTH_MISMATCH' || d.issue.toLowerCase().includes('birth') || d.issue.toLowerCase().includes('under age')
+  ).length;
+  const ledgerCount = instantDisputes.filter(
+    (d) => d.clericalDetails?.category === 'MATHEMATICAL_LEDGER' || d.issue.toLowerCase().includes('balance') || d.issue.toLowerCase().includes('zero')
+  ).length;
 
   // Score determination (Dynamic with fallback to mockup 642)
   const score = report?.score?.cibilScore ?? report?.score?.score ?? 642;
@@ -192,36 +224,66 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
                 strokeLinecap="round"
               />
 
-              {/* Gradient Track */}
-              <path
+              {/* Animated Gradient Track with Framer Motion */}
+              <motion.path
                 d="M 20 100 A 80 80 0 0 1 180 100"
                 fill="none"
                 stroke="url(#scoreGaugeGrad)"
                 strokeWidth="18"
                 strokeLinecap="round"
-                opacity="0.9"
+                opacity="0.95"
+                strokeDasharray={Math.PI * 80}
+                initial={{ strokeDashoffset: Math.PI * 80 }}
+                animate={{
+                  strokeDashoffset:
+                    Math.PI * 80 * (1 - Math.min(1, Math.max(0, (score - 300) / (900 - 300)))),
+                }}
+                transition={{
+                  duration: 1.25,
+                  ease: [0.16, 1, 0.3, 1],
+                }}
               />
 
-              {/* Indicator Needle */}
-              <g transform={`rotate(${normalizedAngle - 90} 100 100)`}>
+              {/* Animated Indicator Needle with Framer Motion */}
+              <motion.g
+                initial={{ rotate: -90 }}
+                animate={{ rotate: normalizedAngle - 90 }}
+                transition={{
+                  type: 'spring',
+                  stiffness: 55,
+                  damping: 14,
+                  delay: 0.15,
+                }}
+                style={{ transformOrigin: '100px 100px' }}
+              >
                 <line x1="100" y1="100" x2="100" y2="30" stroke="#12233F" strokeWidth="4" strokeLinecap="round" />
                 <circle cx="100" cy="100" r="7" fill="#12233F" />
                 <circle cx="100" cy="100" r="3" fill="#FFFFFF" />
-              </g>
+              </motion.g>
 
               {/* Needle pivot baseline */}
               <circle cx="100" cy="100" r="10" fill="#12233F" opacity="0.1" />
             </svg>
 
-            {/* Score in Center */}
-            <div className="absolute bottom-1 flex flex-col items-center">
+            {/* Score in Center with Spring Entrance */}
+            <motion.div
+              initial={{ scale: 0.8, opacity: 0, y: 8 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              transition={{
+                type: 'spring',
+                stiffness: 120,
+                damping: 18,
+                delay: 0.25,
+              }}
+              className="absolute bottom-1 flex flex-col items-center"
+            >
               <span className="text-4xl sm:text-5xl font-extrabold text-[#12233F] tracking-tight font-heading">
                 {score}
               </span>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 Your CIBIL Score
               </span>
-            </div>
+            </motion.div>
           </div>
 
           {/* Min / Max Labels */}
@@ -328,6 +390,149 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
         </div>
       </div>
 
+      {/* CLERICAL ERROR AUTO-SCANNER SPOTLIGHT: INSTANT DISPUTE CANDIDATES */}
+      {instantDisputes.length > 0 && (
+        <div className="relative overflow-hidden rounded-3xl bg-gradient-to-br from-amber-500/10 via-orange-500/10 to-amber-500/5 border-2 border-amber-300 p-6 sm:p-7 shadow-xs space-y-5">
+          <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+            <div className="space-y-2 max-w-3xl">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-extrabold bg-amber-500 text-white shadow-xs tracking-wide">
+                  <Zap className="w-3.5 h-3.5 fill-white" />
+                  AUTOMATED SCANNER: CLERICAL ERRORS DETECTED
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  ⚡ {instantDisputes.length} Instant Dispute Candidates
+                </span>
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-blue-100 text-blue-800 border border-blue-200">
+                  Section 21 CICRA 2005 Fast-Track
+                </span>
+              </div>
+
+              <h2 className="text-xl sm:text-2xl font-black text-slate-900 font-heading tracking-tight">
+                {instantDisputes.length} Objective Clerical Inconsistencies Found in Your Uploaded Report
+              </h2>
+
+              <p className="text-xs sm:text-sm text-slate-700 leading-relaxed font-medium">
+                Our verification engine automatically scanned your trade lines, identity headers, and ledger balances and flagged{' '}
+                <strong className="text-slate-900 font-bold">{instantDisputes.length} objective clerical errors</strong> (e.g.{' '}
+                {duplicateCount > 0 && `${duplicateCount} duplicate trade line(s), `}
+                {addressCount > 0 && `${addressCount} address/PIN code mismatch(es), `}
+                {dobCount > 0 && `${dobCount} date of birth / underage record(s), `}
+                {ledgerCount > 0 && `${ledgerCount} zero-balance overdue contradiction(s)`}
+                ). These represent the <strong>fastest path to score recovery</strong> because Indian credit bureaus
+                are legally bound under Section 21 of CICRA 2005 to expunge verifiable clerical mistakes within 30 days.
+              </p>
+
+              {/* Categorical breakdown pills */}
+              <div className="flex flex-wrap items-center gap-2 pt-1 text-[11px] font-semibold">
+                {duplicateCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/90 border border-amber-200 text-amber-900 shadow-2xs">
+                    <Layers className="w-3.5 h-3.5 text-amber-600" />
+                    Duplicate Trade Lines: {duplicateCount}
+                  </span>
+                )}
+                {addressCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/90 border border-blue-200 text-blue-900 shadow-2xs">
+                    <MapPin className="w-3.5 h-3.5 text-blue-600" />
+                    Address / PIN Inaccuracies: {addressCount}
+                  </span>
+                )}
+                {dobCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/90 border border-rose-200 text-rose-900 shadow-2xs">
+                    <Calendar className="w-3.5 h-3.5 text-rose-600" />
+                    DOB / Age Inconsistencies: {dobCount}
+                  </span>
+                )}
+                {ledgerCount > 0 && (
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-white/90 border border-emerald-200 text-emerald-900 shadow-2xs">
+                    <Scale className="w-3.5 h-3.5 text-emerald-600" />
+                    Ledger &amp; Overdue Glitches: {ledgerCount}
+                  </span>
+                )}
+              </div>
+            </div>
+
+            <div className="shrink-0 flex flex-col sm:flex-row lg:flex-col items-stretch gap-2.5">
+              <button
+                type="button"
+                onClick={() => onNavigate('disputes')}
+                className="px-5 py-3 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs sm:text-sm shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer transform active:scale-98"
+              >
+                <Zap className="w-4 h-4 fill-white" />
+                <span>Review &amp; Launch Instant Disputes</span>
+                <ArrowRight className="w-4 h-4" />
+              </button>
+              <div className="px-3 py-2 rounded-xl bg-white/80 border border-slate-200 text-[11px] text-slate-600 text-center">
+                <span className="font-bold text-slate-800">Statutory 30-Day Resolution</span>
+                <p className="text-[10px] text-slate-500">₹100/day compensation for delay</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Preview grid of instant dispute candidates */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3.5 pt-2">
+            {instantDisputes.slice(0, 3).map((disp) => {
+              const details = disp.clericalDetails;
+              return (
+                <div
+                  key={disp.id}
+                  className="bg-white rounded-2xl border border-amber-200 p-4 shadow-2xs space-y-2.5 flex flex-col justify-between hover:border-amber-300 transition-all"
+                >
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between gap-1.5">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-extrabold bg-amber-100 text-amber-900 border border-amber-300">
+                        <Zap className="w-3 h-3 text-amber-600 fill-amber-500" />
+                        INSTANT DISPUTE
+                      </span>
+                      {details?.estimatedScoreImpactPoints && (
+                        <span className="px-1.5 py-0.5 rounded text-[10px] font-bold bg-emerald-100 text-emerald-800">
+                          +{details.estimatedScoreImpactPoints} pts
+                        </span>
+                      )}
+                    </div>
+
+                    <h4 className="text-xs font-bold text-slate-900 leading-snug">
+                      {disp.issue}
+                    </h4>
+
+                    {details?.foundValue && (
+                      <div className="text-[10.5px] bg-slate-50 p-2 rounded-lg border border-slate-200 space-y-1">
+                        <div>
+                          <span className="text-slate-500 block font-semibold">Found in Report:</span>
+                          <span className="font-mono text-rose-700">{details.foundValue}</span>
+                        </div>
+                        <div>
+                          <span className="text-slate-500 block font-semibold">Contradicts Standard:</span>
+                          <span className="font-mono text-emerald-700">{details.expectedOrContradictingValue}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    <p className="text-[11px] text-slate-600 line-clamp-2">
+                      {disp.whyInconsistent}
+                    </p>
+                  </div>
+
+                  <div className="pt-2 border-t border-slate-100 flex items-center justify-between gap-2">
+                    <span className="text-[10px] text-slate-500 font-semibold">
+                      Fast-Track: ~{details?.resolutionTimeframeDays || 15} Days
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onNavigate('disputes')}
+                      className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-900 cursor-pointer"
+                    >
+                      <span>Draft Notice</span>
+                      <ArrowRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* 4. Two-Column List Section: Key Issues vs Good Things */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Left Column: Key Issues Affecting Your Score */}
@@ -429,6 +634,17 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
             </div>
           </div>
         </div>
+      </div>
+
+      {/* 5. Account List View with Bank Name Search & Status Filter */}
+      <div id="accounts-section" className="scroll-mt-6">
+        <AccountsListView
+          accounts={report?.accounts || []}
+          onDraftLetter={onDraftLetter || ((acc) => onNavigate('letter'))}
+          onNavigateHistory={() => onNavigate('history')}
+          title="Credit Accounts & Facilities Inventory"
+          description="Search specific credit facilities by bank name (e.g., HDFC, SBI, Axis, Bajaj) or filter by reported status (Active, Overdue, Settled, Written-off, Closed)."
+        />
       </div>
 
       {/* 6. Top Key Points to Improve Credit Score (Highlight Section) */}
@@ -537,7 +753,16 @@ export const AnalysisPage: React.FC<AnalysisPageProps> = ({
 
               <button
                 type="button"
-                onClick={() => onNavigate(item.actionTab)}
+                onClick={() => {
+                  if (item.actionTab === 'accounts') {
+                    const el = document.getElementById('accounts-section');
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth' });
+                      return;
+                    }
+                  }
+                  onNavigate(item.actionTab);
+                }}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold text-[#12233F] bg-slate-100 hover:bg-[#12233F] hover:text-white transition-all shrink-0 cursor-pointer self-start sm:self-center"
               >
                 <span>{item.actionLabel}</span>

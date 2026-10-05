@@ -78,8 +78,14 @@ export const AIAnalysisSchema = z.object({
         if (['HIGH', 'MEDIUM', 'LOW'].includes(u)) return u as any;
         return 'HIGH';
       }),
+      isClericalError: z.boolean().optional(),
+      isInstantDisputeCandidate: z.boolean().optional(),
+      clericalDetails: z.any().optional(),
     })
   ).catch([]),
+  clericalErrorsCount: z.number().optional(),
+  instantDisputeCount: z.number().optional(),
+  clericalErrorsList: z.array(z.any()).optional(),
   rankedNegativeFactors: z.array(
     z.object({
       rank: z.number().catch(1),

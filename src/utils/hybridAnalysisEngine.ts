@@ -8,6 +8,7 @@ import {
   RankedFactor,
   SeverityLevel,
 } from '../types';
+import { scanReportForClericalErrors } from './clericalErrorScanner';
 
 /**
  * Deterministic analysis engine that calculates factual metrics,
@@ -149,25 +150,28 @@ export function runDeterministicAnalysis(report: NormalizedCreditReport): AIAnal
     });
   }
 
-  // 3. Potential Disputable Items
-  const disputeOpportunities: DisputeOpportunity[] = [];
+  // 3. Potential Disputable Items & Automated Clerical Error Scanning
+  const clericalDisputes = scanReportForClericalErrors(report);
+  const disputeOpportunities: DisputeOpportunity[] = [...clericalDisputes];
 
   // Inconsistency 1: Account marked active with overdue despite possible closure
   accounts.forEach(acc => {
     if (acc.rawStatus.toLowerCase().includes('discrepancy') || acc.rawStatus.toLowerCase().includes('noc') || (acc.closedDate && acc.currentBalance > 0)) {
-      disputeOpportunities.push({
-        id: `disp-${acc.id}`,
-        accountId: acc.id,
-        issue: `Account marked active/overdue despite closure or settlement`,
-        evidenceFromReport: `${acc.lender} (${acc.accountType}) reports Balance: ₹${acc.currentBalance.toLocaleString('en-IN')}, Overdue: ₹${acc.overdueAmount.toLocaleString('en-IN')}.`,
-        whyInconsistent: 'Credit report indicates ongoing dues or delayed status on an account claimed closed by borrower.',
-        evidenceToProvide: 'Official Loan Closure Letter / Bank No Objection Certificate (NOC) / Final Zero-balance statement.',
-        recommendedRoute: 'CIBIL Dispute Portal',
-        confidence: 'HIGH',
-      });
+      if (!disputeOpportunities.some(d => d.accountId === acc.id && d.issue.toLowerCase().includes('closed'))) {
+        disputeOpportunities.push({
+          id: `disp-${acc.id}`,
+          accountId: acc.id,
+          issue: `Account marked active/overdue despite closure or settlement`,
+          evidenceFromReport: `${acc.lender} (${acc.accountType}) reports Balance: ₹${acc.currentBalance.toLocaleString('en-IN')}, Overdue: ₹${acc.overdueAmount.toLocaleString('en-IN')}.`,
+          whyInconsistent: 'Credit report indicates ongoing dues or delayed status on an account claimed closed by borrower.',
+          evidenceToProvide: 'Official Loan Closure Letter / Bank No Objection Certificate (NOC) / Final Zero-balance statement.',
+          recommendedRoute: 'CIBIL Dispute Portal',
+          confidence: 'HIGH',
+        });
+      }
     }
 
-    // Inconsistency 2: Potential duplicate account
+    // Inconsistency 2: Potential duplicate account (if not already caught by clerical scanner)
     const duplicates = accounts.filter(
       other =>
         other.id !== acc.id &&
@@ -175,7 +179,7 @@ export function runDeterministicAnalysis(report: NormalizedCreditReport): AIAnal
         other.sanctionedAmount === acc.sanctionedAmount &&
         other.openDate === acc.openDate
     );
-    if (duplicates.length > 0 && !disputeOpportunities.some(d => d.issue.includes('Duplicate'))) {
+    if (duplicates.length > 0 && !disputeOpportunities.some(d => d.issue.toLowerCase().includes('duplicate'))) {
       disputeOpportunities.push({
         id: `disp-dup-${acc.id}`,
         accountId: acc.id,
@@ -184,22 +188,28 @@ export function runDeterministicAnalysis(report: NormalizedCreditReport): AIAnal
         whyInconsistent: 'Lenders occasionally upload the same loan twice under different internal reference IDs during system migrations.',
         evidenceToProvide: 'Original loan agreement showing only a single loan account was sanctioned.',
         recommendedRoute: 'Lender Nodal/Grievance',
-        confidence: 'MEDIUM',
+        confidence: 'HIGH',
+        isClericalError: true,
+        isInstantDisputeCandidate: true,
       });
     }
 
-    // Inconsistency 3: Overdue reported on 0 balance or mismatch
+    // Inconsistency 3: Overdue reported on 0 balance or mismatch (if not already caught by clerical scanner)
     if (acc.currentBalance === 0 && acc.overdueAmount > 0) {
-      disputeOpportunities.push({
-        id: `disp-bal-${acc.id}`,
-        accountId: acc.id,
-        issue: `Mathematical Discrepancy: Overdue with Zero Balance at ${acc.lender}`,
-        evidenceFromReport: `Current Balance is ₹0 but Overdue Amount is reported as ₹${acc.overdueAmount.toLocaleString('en-IN')}.`,
-        whyInconsistent: 'Overdue amounts cannot exceed total outstanding balance without explicit fee reversal or accounting error.',
-        evidenceToProvide: 'Latest account statement showing nil outstanding balance.',
-        recommendedRoute: 'CIBIL Dispute Portal',
-        confidence: 'HIGH',
-      });
+      if (!disputeOpportunities.some(d => d.accountId === acc.id && d.issue.toLowerCase().includes('zero balance'))) {
+        disputeOpportunities.push({
+          id: `disp-bal-${acc.id}`,
+          accountId: acc.id,
+          issue: `Mathematical Discrepancy: Overdue with Zero Balance at ${acc.lender}`,
+          evidenceFromReport: `Current Balance is ₹0 but Overdue Amount is reported as ₹${acc.overdueAmount.toLocaleString('en-IN')}.`,
+          whyInconsistent: 'Overdue amounts cannot exceed total outstanding balance without explicit fee reversal or accounting error.',
+          evidenceToProvide: 'Latest account statement showing nil outstanding balance.',
+          recommendedRoute: 'CIBIL Dispute Portal',
+          confidence: 'HIGH',
+          isClericalError: true,
+          isInstantDisputeCandidate: true,
+        });
+      }
     }
   });
 
@@ -217,6 +227,16 @@ export function runDeterministicAnalysis(report: NormalizedCreditReport): AIAnal
       });
     }
   });
+
+  // Prioritize instant dispute candidates at top of array
+  disputeOpportunities.sort((a, b) => {
+    if (a.isInstantDisputeCandidate && !b.isInstantDisputeCandidate) return -1;
+    if (!a.isInstantDisputeCandidate && b.isInstantDisputeCandidate) return 1;
+    return 0;
+  });
+
+  const instantDisputeCount = disputeOpportunities.filter(d => d.isInstantDisputeCandidate).length;
+  const clericalErrorsCount = disputeOpportunities.filter(d => d.isClericalError).length;
 
   // 4. Ranked Factors (What Is Hurting Your Score?)
   const rankedNegativeFactors: RankedFactor[] = [];
@@ -407,6 +427,9 @@ export function runDeterministicAnalysis(report: NormalizedCreditReport): AIAnal
     criticalIssues,
     negativeAccounts,
     disputeOpportunities,
+    clericalErrorsCount,
+    instantDisputeCount,
+    clericalErrorsList: clericalDisputes,
     rankedNegativeFactors,
     paymentBehaviour,
     utilizationAnalysis,

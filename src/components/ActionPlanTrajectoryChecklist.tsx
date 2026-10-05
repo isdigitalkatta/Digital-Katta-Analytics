@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { motion, AnimatePresence } from 'motion/react';
 import {
   CheckCircle2,
   Circle,
@@ -284,28 +285,69 @@ export const ActionPlanTrajectoryChecklist: React.FC<ActionPlanTrajectoryCheckli
           const isDone = Boolean(completedTasks[task.id]);
 
           return (
-            <div
+            <motion.div
               key={task.id}
+              layout="position"
               onClick={() => onToggleTask(task.id, task.title)}
-              className={`p-4 rounded-2xl border transition-all cursor-pointer flex items-start justify-between gap-3.5 select-none ${
+              whileHover={{ scale: 1.008 }}
+              whileTap={{ scale: 0.995 }}
+              className={`p-4 rounded-2xl border transition-colors cursor-pointer flex items-start justify-between gap-3.5 select-none ${
                 isDone
                   ? 'bg-emerald-50/40 border-emerald-300 ring-1 ring-emerald-200'
                   : 'bg-white border-slate-200/90 hover:border-slate-300 hover:bg-slate-50/50'
               }`}
             >
               <div className="flex items-start gap-3.5 flex-1 min-w-0">
-                {/* Custom Checkbox Button */}
-                <button
-                  type="button"
-                  aria-label={isDone ? 'Mark as incomplete' : 'Mark as complete'}
-                  className={`w-6 h-6 rounded-lg flex items-center justify-center shrink-0 mt-0.5 transition-all cursor-pointer ${
-                    isDone
-                      ? 'bg-emerald-600 text-white shadow-xs scale-105'
-                      : 'border-2 border-slate-300 hover:border-slate-400 bg-white text-transparent'
-                  }`}
+                {/* Custom Animated Checkbox Button with Framer Motion */}
+                <motion.div
+                  className="relative mt-0.5 shrink-0 flex items-center justify-center"
+                  whileHover={{ scale: 1.15 }}
+                  whileTap={{ scale: 0.85 }}
                 >
-                  <Check className="w-4 h-4 stroke-[3]" />
-                </button>
+                  {/* Subtle pulse ripple ring on check */}
+                  {isDone && (
+                    <motion.span
+                      initial={{ scale: 0.7, opacity: 0.8 }}
+                      animate={{ scale: 2, opacity: 0 }}
+                      transition={{ duration: 0.45, ease: 'easeOut' }}
+                      className="absolute inset-0 rounded-lg bg-emerald-400/40 pointer-events-none"
+                    />
+                  )}
+
+                  <div
+                    className={`w-6 h-6 rounded-lg flex items-center justify-center transition-all ${
+                      isDone
+                        ? 'bg-emerald-600 text-white shadow-xs'
+                        : 'border-2 border-slate-300 hover:border-slate-400 bg-white'
+                    }`}
+                  >
+                    <AnimatePresence mode="wait">
+                      {isDone && (
+                        <motion.svg
+                          key="checked-tick"
+                          viewBox="0 0 24 24"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="3.2"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          className="w-4 h-4 text-white"
+                          initial={{ scale: 0.4, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.4, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 450, damping: 20 }}
+                        >
+                          <motion.path
+                            d="M 5 12 L 10 17 L 19 7"
+                            initial={{ pathLength: 0 }}
+                            animate={{ pathLength: 1 }}
+                            transition={{ duration: 0.22, ease: 'easeOut' }}
+                          />
+                        </motion.svg>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                </motion.div>
 
                 {/* Task Details */}
                 <div className="space-y-1 min-w-0 flex-1">
@@ -326,12 +368,20 @@ export const ActionPlanTrajectoryChecklist: React.FC<ActionPlanTrajectoryCheckli
                       {task.category}
                     </span>
 
-                    {isDone && (
-                      <span className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1">
-                        <CheckCircle2 className="w-3 h-3" />
-                        <span>Completed • Active in Trajectory</span>
-                      </span>
-                    )}
+                    <AnimatePresence>
+                      {isDone && (
+                        <motion.span
+                          initial={{ scale: 0.7, opacity: 0 }}
+                          animate={{ scale: 1, opacity: 1 }}
+                          exit={{ scale: 0.7, opacity: 0 }}
+                          transition={{ type: 'spring', stiffness: 350, damping: 18 }}
+                          className="text-[10px] font-extrabold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full flex items-center gap-1"
+                        >
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Completed • Active in Trajectory</span>
+                        </motion.span>
+                      )}
+                    </AnimatePresence>
                   </div>
 
                   <p
@@ -344,9 +394,10 @@ export const ActionPlanTrajectoryChecklist: React.FC<ActionPlanTrajectoryCheckli
                 </div>
               </div>
 
-              {/* Point Boost Pill */}
+              {/* Point Boost Pill with motion */}
               <div className="shrink-0 text-right">
-                <span
+                <motion.span
+                  layout
                   className={`inline-flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-xl transition-all ${
                     isDone
                       ? 'bg-emerald-600 text-white shadow-xs'
@@ -355,12 +406,12 @@ export const ActionPlanTrajectoryChecklist: React.FC<ActionPlanTrajectoryCheckli
                 >
                   <Zap className="w-3 h-3" />
                   <span>+{task.pointImpact} Pts</span>
-                </span>
+                </motion.span>
                 <span className="block text-[9px] font-semibold text-slate-400 mt-0.5">
                   {isDone ? 'Secured' : 'Projected'}
                 </span>
               </div>
-            </div>
+            </motion.div>
           );
         })}
       </div>

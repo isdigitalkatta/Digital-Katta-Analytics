@@ -27,6 +27,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onNavigat
           isModalView={true}
           onSuccess={onClose}
           onCancel={onClose}
+          onNavigateToStaffPortal={() => {
+            if (onNavigateToCrm) onNavigateToCrm();
+            onClose();
+          }}
           onNavigateToCrm={() => {
             if (onNavigateToCrm) onNavigateToCrm();
             onClose();

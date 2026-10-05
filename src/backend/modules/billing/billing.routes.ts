@@ -4,7 +4,6 @@ import {
   processMarkPaidAndSync,
   getBillingSecrets,
   isValidServerSecret,
-  DEFAULT_BILLING_SECRET,
 } from './billing.service.js';
 
 export const billingRouter = Router();
@@ -88,9 +87,9 @@ billingRouter.get('/webhook-ready', (req: Request, res: Response) => {
       razorpaySignatureHeader: 'x-razorpay-signature',
       plainFrontendButtonsAllowed: false,
     },
-    hasCustomServerSecret: serverSecret !== DEFAULT_BILLING_SECRET,
+    hasCustomServerSecret: Boolean(serverSecret && serverSecret !== 'dev_billing_secret_staging_only'),
     hasRazorpayWebhookConfigured: !!razorpaySecret,
-    defaultSecretAvailable: true,
+    defaultSecretAvailable: process.env.NODE_ENV !== 'production',
   });
 });
 

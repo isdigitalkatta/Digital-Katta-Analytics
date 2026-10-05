@@ -125,8 +125,8 @@ export const AdminLeadSheet: React.FC<AdminLeadSheetProps> = ({ onLeadConvertedT
   const [conversionForm, setConversionForm] = useState({
     amountPaid: 1999,
     packageName: 'Comprehensive CIBIL Resolution',
-    assignedCreditExpert: 'Adv. Ramesh Patil',
-    assignedPartnerAssistant: 'Pooja Deshmukh',
+    assignedCreditExpert: 'Senior Dispute Counsel',
+    assignedPartnerAssistant: 'Lead Desk Officer',
     remarks: 'Payment verified via UPI/Razorpay webhook',
     serverSecret: 'dk_billing_sec_live_2026',
   });
@@ -846,10 +846,10 @@ export const AdminLeadSheet: React.FC<AdminLeadSheetProps> = ({ onLeadConvertedT
                       {/* Assigned Staff */}
                       <td className="py-3.5 px-4 text-[11px]">
                         <p className="font-semibold text-slate-800">
-                          {lead.assignedCreditExpert || 'Adv. Ramesh Patil'}
+                          {lead.assignedCreditExpert || 'Senior Dispute Counsel'}
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          Asst: {lead.assignedPartnerAssistant || 'Pooja Deshmukh'}
+                          Asst: {lead.assignedPartnerAssistant || 'Lead Desk Officer'}
                         </p>
                       </td>
 
@@ -865,8 +865,8 @@ export const AdminLeadSheet: React.FC<AdminLeadSheetProps> = ({ onLeadConvertedT
                                 setConversionForm({
                                   amountPaid: 1999,
                                   packageName: lead.packageName || 'Comprehensive CIBIL Resolution',
-                                  assignedCreditExpert: lead.assignedCreditExpert || 'Adv. Ramesh Patil',
-                                  assignedPartnerAssistant: lead.assignedPartnerAssistant || 'Pooja Deshmukh',
+                                  assignedCreditExpert: lead.assignedCreditExpert || 'Senior Dispute Counsel',
+                                  assignedPartnerAssistant: lead.assignedPartnerAssistant || 'Lead Desk Officer',
                                   remarks: 'Payment verified via UPI/Razorpay webhook',
                                   serverSecret: 'dk_billing_sec_live_2026',
                                 });
@@ -1009,8 +1009,8 @@ export const AdminLeadSheet: React.FC<AdminLeadSheetProps> = ({ onLeadConvertedT
                     }
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-emerald-600 focus:outline-none bg-white"
                   >
-                    <option value="Adv. Ramesh Patil">Adv. Ramesh Patil</option>
-                    <option value="Dr. Neha Kulkarni">Dr. Neha Kulkarni</option>
+                    <option value="Senior Dispute Counsel">Senior Dispute Counsel</option>
+                    <option value="Principal Credit Analyst">Principal Credit Analyst</option>
                     <option value="Senior Legal Analyst">Senior Legal Analyst</option>
                   </select>
                 </div>
@@ -1262,7 +1262,7 @@ export const AdminLeadSheet: React.FC<AdminLeadSheetProps> = ({ onLeadConvertedT
                     required
                     value={newLeadForm.name}
                     onChange={(e) => setNewLeadForm({ ...newLeadForm, name: e.target.value })}
-                    placeholder="e.g. Ramesh Kulkarni"
+                    placeholder="e.g. Borrower Full Name"
                     className="w-full px-3 py-2 text-xs rounded-xl border border-slate-200 focus:ring-2 focus:ring-[#1c3859] focus:outline-none"
                   />
                 </div>
@@ -1473,13 +1473,13 @@ export const AdminLeadSheet: React.FC<AdminLeadSheetProps> = ({ onLeadConvertedT
                 <div>
                   <span>Assigned Expert: </span>
                   <strong className="text-slate-700">
-                    {detailsModalLead.assignedCreditExpert || 'Adv. Ramesh Patil'}
+                    {detailsModalLead.assignedCreditExpert || 'Senior Dispute Counsel'}
                   </strong>
                 </div>
                 <div>
                   <span>Partner Assistant: </span>
                   <strong className="text-slate-700">
-                    {detailsModalLead.assignedPartnerAssistant || 'Pooja Deshmukh'}
+                    {detailsModalLead.assignedPartnerAssistant || 'Lead Desk Officer'}
                   </strong>
                 </div>
               </div>

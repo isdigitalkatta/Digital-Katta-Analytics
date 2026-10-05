@@ -34,6 +34,7 @@ import { EnquiriesView } from './components/EnquiriesView';
 import { AskAIAssistant } from './components/AskAIAssistant';
 import { ExportReportView } from './components/ExportReportView';
 import { AdminDashboardView } from './components/AdminDashboardView';
+import { StaffCrmPortal } from './components/crm/StaffCrmPortal';
 import { PrivacyModal } from './components/PrivacyModal';
 import { ScoreGauge } from './components/ScoreGauge';
 import { AuthModal } from './components/AuthModal';
@@ -53,6 +54,8 @@ export function App() {
     closeMandatoryProfileModal,
     mandatoryProfileFeatureEnabled,
     isProfileComplete,
+    isStaff,
+    syncUploadedBorrowerName,
   } = useAuth();
   
   const { currentLang, isRtl } = useAppLanguage();
@@ -67,16 +70,90 @@ export function App() {
   const [isSessionUnlocked, setIsSessionUnlocked] = useState<boolean>(false);
   const [sessionTimedOut, setSessionTimedOut] = useState<boolean>(false);
 
+  // Dedicated Link for Staff CRM (#staff, #crm, ?portal=staff, /staff)
+  const isStaffUrl = () => {
+    try {
+      const hash = window.location.hash.toLowerCase();
+      const search = window.location.search.toLowerCase();
+      const path = window.location.pathname.toLowerCase();
+      return (
+        hash === '#staff' ||
+        hash === '#crm' ||
+        hash.includes('staff') ||
+        hash.includes('crm') ||
+        search.includes('portal=staff') ||
+        search.includes('view=staff') ||
+        search.includes('staff=true') ||
+        search.includes('crm=true') ||
+        path.startsWith('/staff') ||
+        path.startsWith('/crm')
+      );
+    } catch {
+      return false;
+    }
+  };
+
+  const [isStaffPortalActive, setIsStaffPortalActive] = useState<boolean>(isStaffUrl);
+
+  useEffect(() => {
+    const handleUrlChange = () => {
+      setIsStaffPortalActive(isStaffUrl());
+    };
+    window.addEventListener('hashchange', handleUrlChange);
+    window.addEventListener('popstate', handleUrlChange);
+    return () => {
+      window.removeEventListener('hashchange', handleUrlChange);
+      window.removeEventListener('popstate', handleUrlChange);
+    };
+  }, []);
+
+  const openStaffPortal = () => {
+    window.location.hash = 'staff';
+    setIsStaffPortalActive(true);
+  };
+
+  const closeStaffPortal = () => {
+    try {
+      if (window.location.hash.includes('staff') || window.location.hash.includes('crm')) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.has('portal') || searchParams.has('view') || searchParams.has('staff') || searchParams.has('crm')) {
+        searchParams.delete('portal');
+        searchParams.delete('view');
+        searchParams.delete('staff');
+        searchParams.delete('crm');
+        const cleanSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
+        window.history.replaceState(null, '', window.location.pathname + cleanSearch);
+      }
+    } catch {}
+    setIsStaffPortalActive(false);
+    setCurrentTab('home');
+  };
+
   const handleSessionUnlock = (targetTab?: DashboardTab) => {
     try {
       sessionStorage.setItem('digitalkatta_session_unlocked', 'true');
     } catch {}
+    setIsStaffPortalActive(false);
+    try {
+      if (window.location.hash.includes('staff') || window.location.hash.includes('crm')) {
+        window.history.replaceState(null, '', window.location.pathname + window.location.search);
+      }
+      const searchParams = new URLSearchParams(window.location.search);
+      if (searchParams.has('portal') || searchParams.has('view') || searchParams.has('staff') || searchParams.has('crm')) {
+        searchParams.delete('portal');
+        searchParams.delete('view');
+        searchParams.delete('staff');
+        searchParams.delete('crm');
+        const cleanSearch = searchParams.toString() ? `?${searchParams.toString()}` : '';
+        window.history.replaceState(null, '', window.location.pathname + cleanSearch);
+      }
+    } catch {}
     setIsSessionUnlocked(true);
     setShowLoginView(false);
     setSessionTimedOut(false);
-    if (targetTab) {
-      setCurrentTab(targetTab);
-    }
+    setCurrentTab(targetTab || 'home');
   };
 
   // 5-Minute Inactivity Idle Timer:
@@ -107,6 +184,18 @@ export function App() {
       console.error('PDF download error:', err);
     }
   };
+
+  // Derive active borrower name:
+  // When report is uploaded, use the uploaded report's borrower name.
+  // In demo mode or when unauthenticated, do not use real people names (use 'Demo Borrower' / 'Borrower').
+  const hasUploadedReport = Boolean(report && report.rawSourceType !== 'DEMO' && report.personal?.name);
+  const activeBorrowerName = hasUploadedReport
+    ? (report?.personal?.name || 'Borrower')
+    : (!user?.isDemo && user?.name ? user.name : 'Demo Borrower');
+
+  const activeBorrowerFirstName = hasUploadedReport
+    ? (report?.personal?.name ? report.personal.name.split(' ')[0] : 'Borrower')
+    : (!user?.isDemo && user?.name ? String(user.name).split(' ')[0] : 'Borrower');
 
   // Listen for user logout to re-lock the session and present LoginScreen
   useEffect(() => {
@@ -139,6 +228,18 @@ export function App() {
 
     setReport(loadedReport);
     setCurrentTab('analysis');
+
+    // Sync borrower name from uploaded report to profile, user session, and CRM
+    if (loadedReport.personal?.name && loadedReport.rawSourceType !== 'DEMO') {
+      try {
+        await syncUploadedBorrowerName(
+          loadedReport.personal.name,
+          loadedReport.personal.email,
+          loadedReport.personal.phone,
+          loadedReport.personal.pan
+        );
+      } catch {}
+    }
 
     // Step 1: Immediate factual baseline from deterministic engine
     const baseline = runDeterministicAnalysis(loadedReport);
@@ -203,14 +304,22 @@ export function App() {
     setCurrentTab('letter');
   };
 
-  // MANDATORY: Login screen is shown at the start of every session or when idle
+  // SEPARATE STAFF CRM PORTAL LINK: If user navigates to staff CRM, render Staff Portal
+  if (isStaffPortalActive) {
+    return (
+      <StaffCrmPortal onReturnToCustomer={closeStaffPortal} />
+    );
+  }
+
+  // MANDATORY: Customer Login screen is shown at the start of every session or when idle
+  // Notice: Customer login strictly contains NO staff login or staff CRM tabs
   if (!isSessionUnlocked || showLoginView) {
     return (
       <div className="min-h-screen bg-[#FFF8F0]" key={currentLang} dir={isRtl ? 'rtl' : 'ltr'}>
         <LoginScreen
           onSuccess={handleSessionUnlock}
           onCancel={handleSessionUnlock}
-          onNavigateToCrm={() => handleSessionUnlock('admin')}
+          onNavigateToStaffPortal={openStaffPortal}
           sessionTimedOut={sessionTimedOut}
         />
         <CustomerProfileModal
@@ -223,6 +332,7 @@ export function App() {
             handleSessionUnlock();
           }}
           isMandatory={!user?.isDemo && mandatoryProfileFeatureEnabled && !isProfileComplete}
+          report={report}
         />
       </div>
     );
@@ -232,12 +342,22 @@ export function App() {
     <div key={currentLang} dir={isRtl ? 'rtl' : 'ltr'} className="min-h-screen">
       <DashboardShell
         currentTab={currentTab}
-        onSelectTab={(tab) => setCurrentTab(tab)}
+        onSelectTab={(tab) => {
+          if (tab === 'home') {
+            closeStaffPortal();
+          }
+          setCurrentTab(tab);
+        }}
         negativeAccountsCount={analysis?.negativeAccounts.length || 0}
         disputeCount={analysis?.disputeOpportunities.length || 0}
+        instantDisputeCount={
+          analysis?.instantDisputeCount ||
+          (analysis?.disputeOpportunities || []).filter((d) => d.isInstantDisputeCandidate || d.isClericalError).length
+        }
         onToggleChat={() => setIsChatOpen((prev) => !prev)}
         isChatOpen={isChatOpen}
         onDownloadPdf={handleDownloadPdf}
+        borrowerName={activeBorrowerName}
       >
       {/* ========================================================= */}
       {/* PAGE A: HOME                                              */}
@@ -246,7 +366,7 @@ export function App() {
         <HomePage
           report={report}
           analysis={analysis}
-          userName={user?.name ? String(user.name).split(' ')[0] : 'Sagar'}
+          userName={activeBorrowerFirstName}
           onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
           onDownloadPdf={handleDownloadPdf}
         />
@@ -260,6 +380,8 @@ export function App() {
           report={report}
           analysis={analysis}
           onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
+          onDraftLetter={handleDraftLetterForAccount}
+          onDraftDisputeLetter={handleDraftLetterForDispute}
         />
       )}
 
@@ -293,6 +415,7 @@ export function App() {
           onReportLoaded={handleReportLoaded}
           onSelectDemo={handleSelectDemo}
           currentReport={report}
+          onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
         />
       )}
 
@@ -337,7 +460,9 @@ export function App() {
       {/* ========================================================= */}
       {/* PROFILE PAGE                                              */}
       {/* ========================================================= */}
-      {currentTab === 'profile' && <ProfilePage />}
+      {currentTab === 'profile' && (
+        <ProfilePage report={report} borrowerName={activeBorrowerName} />
+      )}
 
       {/* ========================================================= */}
       {/* PRESERVED GRANULAR SUB-TABS FOR 100% RETENTION            */}
@@ -405,6 +530,22 @@ export function App() {
         </div>
       )}
 
+      {currentTab === 'accounts' && report && (
+        <div className="max-w-6xl mx-auto pb-10 text-left">
+          <button
+            onClick={() => setCurrentTab('analysis')}
+            className="text-xs font-bold text-[#F56B2B] hover:underline mb-4 inline-block cursor-pointer"
+          >
+            ← Back to CIBIL Analysis
+          </button>
+          <AccountsListView
+            accounts={report.accounts}
+            onDraftLetter={handleDraftLetterForAccount}
+            onNavigateHistory={() => setCurrentTab('history')}
+          />
+        </div>
+      )}
+
       {currentTab === 'letter' && report && (
         <div className="max-w-5xl mx-auto pb-10 text-left">
           <button
@@ -428,8 +569,18 @@ export function App() {
       )}
 
       {currentTab === 'admin' && (
-        <div className="max-w-5xl mx-auto pb-10 text-left">
-          <AdminDashboardView onBackToCustomer={() => setCurrentTab('home')} />
+        <div className="max-w-7xl mx-auto pb-10 text-left">
+          {isStaff ? (
+            <StaffCrmPortal onReturnToCustomer={() => setCurrentTab('home')} />
+          ) : (
+            <HomePage
+              report={report}
+              analysis={analysis}
+              userName={activeBorrowerFirstName}
+              onNavigate={(tab) => setCurrentTab(tab as DashboardTab)}
+              onDownloadPdf={handleDownloadPdf}
+            />
+          )}
         </div>
       )}
 
@@ -467,7 +618,7 @@ export function App() {
         onNavigateToCrm={() => {
           setIsAuthOpen(false);
           closeAuthModal();
-          setCurrentTab('admin');
+          openStaffPortal();
         }}
       />
 
@@ -478,6 +629,7 @@ export function App() {
         }
         onClose={closeMandatoryProfileModal}
         isMandatory={!user?.isDemo && mandatoryProfileFeatureEnabled && !isProfileComplete}
+        report={report}
       />
     </DashboardShell>
     </div>

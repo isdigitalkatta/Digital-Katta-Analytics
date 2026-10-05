@@ -289,7 +289,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 disabled={isLoading}
                 className="p-2.5 rounded-xl border border-slate-200 hover:border-rose-300 hover:bg-rose-50/50 text-left transition-colors cursor-pointer"
               >
-                <div className="text-xs font-bold text-rose-800">Arun Kumar (Score: 618)</div>
+                <div className="text-xs font-bold text-rose-800">Stressed Profile (Score: 618)</div>
                 <div className="text-[11px] text-slate-500">Stressed profile with Write-off & Overdue</div>
               </button>
 
@@ -302,7 +302,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
                 disabled={isLoading}
                 className="p-2.5 rounded-xl border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-colors cursor-pointer"
               >
-                <div className="text-xs font-bold text-emerald-800">Priya Sharma (Score: 742)</div>
+                <div className="text-xs font-bold text-emerald-800">Prime Profile (Score: 742)</div>
                 <div className="text-[11px] text-slate-500">Good profile with Active Home Loan</div>
               </button>
             </div>

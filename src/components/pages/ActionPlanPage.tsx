@@ -373,32 +373,71 @@ export const ActionPlanPage: React.FC<ActionPlanPageProps> = ({
                   const isDone = !!completedSteps[step.number];
 
                   return (
-                    <div key={step.number} className="relative flex items-start gap-4 sm:gap-6">
+                    <motion.div
+                      key={step.number}
+                      layout="position"
+                      className="relative flex items-start gap-4 sm:gap-6"
+                    >
                       {/* Interactive Step Badge */}
-                      <button
+                      <motion.button
                         type="button"
+                        whileHover={{ scale: 1.08 }}
+                        whileTap={{ scale: 0.9 }}
                         onClick={() => toggleStep(step.number, step.title)}
                         title={isDone ? 'Mark step as incomplete' : 'Mark step as complete'}
-                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base shrink-0 shadow-xs ring-4 ring-white relative z-10 transition-transform active:scale-95 cursor-pointer ${
+                        className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-sm sm:text-base shrink-0 shadow-xs ring-4 ring-white relative z-10 cursor-pointer ${
                           isDone ? 'bg-emerald-600 text-white ring-emerald-100' : step.numberBg
                         }`}
                       >
-                        {isDone ? (
-                          <motion.div
-                            initial={{ scale: 0.7 }}
-                            animate={{ scale: 1 }}
-                            transition={{ type: 'spring', stiffness: 400, damping: 15 }}
-                          >
-                            <Check className="w-5 h-5 text-white stroke-[2.5]" />
-                          </motion.div>
-                        ) : (
-                          step.number
+                        {isDone && (
+                          <motion.span
+                            initial={{ scale: 0.7, opacity: 0.8 }}
+                            animate={{ scale: 1.8, opacity: 0 }}
+                            transition={{ duration: 0.45, ease: 'easeOut' }}
+                            className="absolute inset-0 rounded-full bg-emerald-400 pointer-events-none"
+                          />
                         )}
-                      </button>
+
+                        <AnimatePresence mode="wait">
+                          {isDone ? (
+                            <motion.svg
+                              key="step-checked"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="3.2"
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              className="w-5 h-5 text-white"
+                              initial={{ scale: 0.4, opacity: 0 }}
+                              animate={{ scale: 1, opacity: 1 }}
+                              exit={{ scale: 0.4, opacity: 0 }}
+                              transition={{ type: 'spring', stiffness: 450, damping: 20 }}
+                            >
+                              <motion.path
+                                d="M 5 12 L 10 17 L 19 7"
+                                initial={{ pathLength: 0 }}
+                                animate={{ pathLength: 1 }}
+                                transition={{ duration: 0.22, ease: 'easeOut' }}
+                              />
+                            </motion.svg>
+                          ) : (
+                            <motion.span
+                              key="step-number"
+                              initial={{ opacity: 0, scale: 0.8 }}
+                              animate={{ opacity: 1, scale: 1 }}
+                              exit={{ opacity: 0, scale: 0.8 }}
+                            >
+                              {step.number}
+                            </motion.span>
+                          )}
+                        </AnimatePresence>
+                      </motion.button>
 
                       {/* Step Content Card with Interactive Checkbox */}
-                      <div
-                        className={`flex-1 p-4 sm:p-5 rounded-xl border transition-all ${
+                      <motion.div
+                        layout="position"
+                        className={`flex-1 p-4 sm:p-5 rounded-xl border transition-colors ${
                           isDone
                             ? 'bg-emerald-50/40 border-emerald-200/90 shadow-2xs'
                             : 'bg-slate-50/70 hover:bg-orange-50/40 border-[#E8ECF0]'
@@ -407,18 +446,26 @@ export const ActionPlanPage: React.FC<ActionPlanPageProps> = ({
                         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-1.5">
                           <div className="flex items-center gap-2">
                             <h2
-                              className={`text-base sm:text-lg font-bold ${
+                              className={`text-base sm:text-lg font-bold transition-opacity ${
                                 isDone ? 'text-emerald-950 line-through opacity-85' : 'text-[#12233F]'
                               }`}
                             >
                               {step.title}
                             </h2>
-                            {isDone && (
-                              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0">
-                                <CheckCircle2 className="w-3 h-3 text-emerald-600" />
-                                <span>Done</span>
-                              </span>
-                            )}
+                            <AnimatePresence>
+                              {isDone && (
+                                <motion.span
+                                  initial={{ scale: 0.6, opacity: 0 }}
+                                  animate={{ scale: 1, opacity: 1 }}
+                                  exit={{ scale: 0.6, opacity: 0 }}
+                                  transition={{ type: 'spring', stiffness: 350, damping: 18 }}
+                                  className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-200 shrink-0"
+                                >
+                                  <CheckCircle2 className="w-3 h-3 text-emerald-600" />
+                                  <span>Done</span>
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
                           </div>
 
                           <div className="flex items-center gap-2 self-start sm:self-auto">
@@ -431,7 +478,7 @@ export const ActionPlanPage: React.FC<ActionPlanPageProps> = ({
                         </div>
 
                         <p
-                          className={`text-xs sm:text-sm leading-relaxed mb-3.5 font-medium ${
+                          className={`text-xs sm:text-sm leading-relaxed mb-3.5 font-medium transition-colors ${
                             isDone ? 'text-slate-500' : 'text-slate-600'
                           }`}
                         >
@@ -450,29 +497,44 @@ export const ActionPlanPage: React.FC<ActionPlanPageProps> = ({
 
                           <motion.button
                             type="button"
-                            whileTap={{ scale: 0.94 }}
+                            whileHover={{ scale: 1.04 }}
+                            whileTap={{ scale: 0.92 }}
                             onClick={() => toggleStep(step.number, step.title)}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer relative overflow-hidden ${
                               isDone
                                 ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-2xs'
                                 : 'bg-white text-slate-700 hover:text-[#FF6A00] border border-slate-200 hover:border-orange-300'
                             }`}
                           >
-                            {isDone ? (
-                              <>
-                                <Check className="w-3.5 h-3.5" />
-                                <span>Completed</span>
-                              </>
-                            ) : (
-                              <>
-                                <Circle className="w-3.5 h-3.5 text-slate-400" />
-                                <span>Mark as Done</span>
-                              </>
-                            )}
+                            <AnimatePresence mode="wait">
+                              {isDone ? (
+                                <motion.span
+                                  key="btn-done"
+                                  initial={{ opacity: 0, y: 3 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -3 }}
+                                  className="inline-flex items-center gap-1.5"
+                                >
+                                  <Check className="w-3.5 h-3.5 stroke-[3]" />
+                                  <span>Completed</span>
+                                </motion.span>
+                              ) : (
+                                <motion.span
+                                  key="btn-not-done"
+                                  initial={{ opacity: 0, y: 3 }}
+                                  animate={{ opacity: 1, y: 0 }}
+                                  exit={{ opacity: 0, y: -3 }}
+                                  className="inline-flex items-center gap-1.5"
+                                >
+                                  <Circle className="w-3.5 h-3.5 text-slate-400" />
+                                  <span>Mark as Done</span>
+                                </motion.span>
+                              )}
+                            </AnimatePresence>
                           </motion.button>
                         </div>
-                      </div>
-                    </div>
+                      </motion.div>
+                    </motion.div>
                   );
                 })}
               </div>

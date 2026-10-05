@@ -19,12 +19,13 @@ import {
   ChevronDown,
 } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
-import { CustomerProfile, CreditBureauOption, GenderOption } from '../types';
+import { CustomerProfile, CreditBureauOption, GenderOption, NormalizedCreditReport } from '../types';
 
 interface CustomerProfileModalProps {
   isOpen: boolean;
   onClose?: () => void;
   isMandatory?: boolean;
+  report?: NormalizedCreditReport | null;
 }
 
 const INDIAN_STATES = [
@@ -65,6 +66,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
   isOpen,
   onClose,
   isMandatory = true,
+  report,
 }) => {
   const { user, customerProfile, saveCustomerProfile, logout } = useAuth();
 
@@ -89,7 +91,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [touched, setTouched] = useState<Record<string, boolean>>({});
 
-  // Pre-fill fields whenever user or customerProfile changes
+  // Pre-fill fields whenever user, customerProfile, or report changes
   useEffect(() => {
     if (!isOpen) return;
 
@@ -115,9 +117,25 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
         setEmail(user.email);
       }
     }
+
+    // If a report is uploaded, prefill with uploaded report's actual data
+    if (report && report.rawSourceType !== 'DEMO' && report.personal?.name) {
+      setFullName(report.personal.name);
+      if (report.personal.pan && /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/.test(report.personal.pan.toUpperCase())) {
+        setPan(report.personal.pan.toUpperCase());
+      }
+      if (report.personal.city) setCity(report.personal.city);
+      if (report.personal.state) setState(report.personal.state);
+      if (report.personal.email) setEmail(report.personal.email);
+      if (report.personal.phone) {
+        const clean = report.personal.phone.replace(/[^0-9]/g, '');
+        if (clean.length >= 10) setPhone(clean.slice(-10));
+      }
+    }
+
     setErrorMessage(null);
     setSuccessMessage(null);
-  }, [isOpen, user, customerProfile]);
+  }, [isOpen, user, customerProfile, report]);
 
   if (!isOpen) return null;
 
@@ -322,7 +340,7 @@ export const CustomerProfileModal: React.FC<CustomerProfileModalProps> = ({
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
                     onBlur={() => setTouched((p) => ({ ...p, fullName: true }))}
-                    placeholder="e.g. Rajesh Kumar Sharma"
+                    placeholder="e.g. Full Name"
                     className={`w-full pl-9 pr-3 py-2 text-sm border rounded-xl bg-slate-50/50 focus:bg-white focus:outline-none focus:ring-2 transition-all ${
                       touched.fullName && (!fullName.trim() || fullName.trim().length < 2)
                         ? 'border-rose-300 focus:ring-rose-200'

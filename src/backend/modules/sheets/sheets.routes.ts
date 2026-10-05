@@ -169,8 +169,8 @@ sheetsRouter.post('/leads/convert', requireStaff, async (req: Request, res: Resp
     const caseNumber = `DK-${currentYear}-${Math.floor(1000 + Math.random() * 9000)}`;
     const pkg = packageName || targetCustomer.packageName || 'Comprehensive CIBIL Dispute Resolution';
     const amount = Number(amountPaid) || Number(targetCustomer.amountPaid) || 1999;
-    const expert = assignedCreditExpert || targetCustomer.assignedCreditExpert || 'Adv. Ramesh Patil';
-    const assistant = assignedPartnerAssistant || targetCustomer.assignedPartnerAssistant || 'Pooja Deshmukh';
+    const expert = assignedCreditExpert || targetCustomer.assignedCreditExpert || 'Senior Dispute Counsel';
+    const assistant = assignedPartnerAssistant || targetCustomer.assignedPartnerAssistant || 'Lead Desk Officer';
 
     // 1. Mark lead as PAID in Leads sheet & local registry
     await updateLeadStatus(
@@ -389,7 +389,7 @@ sheetsRouter.post('/mock-payment', async (req: Request, res: Response) => {
       {
         caseNumber: caseNum,
         assignedPartnerAssistant: 'Partner Desk Pune',
-        assignedCreditExpert: 'Adv. Ramesh Patil',
+        assignedCreditExpert: 'Senior Dispute Counsel',
         status: 'Active Case (Assigned)',
         remarks: `Client opted for ${packageName || 'Resolution Package'}`,
       }

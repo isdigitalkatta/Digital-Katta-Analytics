@@ -146,6 +146,28 @@ export interface NegativeAccountAnalysis {
   documentsRequired: string[];
 }
 
+export type ClericalErrorCategory =
+  | 'DUPLICATE_ACCOUNT'
+  | 'DATE_OF_BIRTH_MISMATCH'
+  | 'ADDRESS_INACCURACY'
+  | 'MATHEMATICAL_LEDGER'
+  | 'IDENTITY_CLERICAL';
+
+export interface ClericalErrorDetails {
+  category: ClericalErrorCategory;
+  categoryLabel: string;
+  field: string;
+  foundValue: string;
+  expectedOrContradictingValue: string;
+  explanation: string;
+  legalGround: string;
+  resolutionTimeframeDays: number;
+  estimatedScoreImpactPoints: number;
+  isInstantCandidate: boolean;
+  requiredDocuments: string[];
+  disputeNoticeType: string;
+}
+
 export interface DisputeOpportunity {
   id: string;
   accountId?: string;
@@ -155,6 +177,9 @@ export interface DisputeOpportunity {
   evidenceToProvide: string;
   recommendedRoute: 'CIBIL Dispute Portal' | 'Lender Nodal/Grievance' | 'RBI Integrated Ombudsman';
   confidence: 'HIGH' | 'MEDIUM' | 'LOW';
+  isClericalError?: boolean;
+  isInstantDisputeCandidate?: boolean;
+  clericalDetails?: ClericalErrorDetails;
 }
 
 export interface RankedFactor {
@@ -192,6 +217,9 @@ export interface AIAnalysisResult {
   }>;
   negativeAccounts: NegativeAccountAnalysis[];
   disputeOpportunities: DisputeOpportunity[];
+  clericalErrorsCount?: number;
+  instantDisputeCount?: number;
+  clericalErrorsList?: DisputeOpportunity[];
   rankedNegativeFactors: RankedFactor[];
   paymentBehaviour: {
     latePaymentsCount: number;

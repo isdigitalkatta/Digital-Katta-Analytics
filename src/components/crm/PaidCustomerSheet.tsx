@@ -514,10 +514,10 @@ export const PaidCustomerSheet: React.FC<PaidCustomerSheetProps> = ({
                       {/* Assigned Expert */}
                       <td className="py-3.5 px-4 text-[11px]">
                         <p className="font-bold text-slate-800">
-                          {c.assignedCreditExpert || 'Adv. Ramesh Patil'}
+                          {c.assignedCreditExpert || 'Senior Dispute Counsel'}
                         </p>
                         <p className="text-[10px] text-slate-400">
-                          {c.assignedPartnerAssistant || 'Pooja Deshmukh'}
+                          {c.assignedPartnerAssistant || 'Lead Desk Officer'}
                         </p>
                       </td>
 

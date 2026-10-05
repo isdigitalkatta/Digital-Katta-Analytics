@@ -29,16 +29,22 @@ export const HomePage: React.FC<HomePageProps> = ({
   onNavigate,
   report,
   analysis,
-  userName = 'Sagar',
+  userName = 'Borrower',
   onDownloadPdf,
 }) => {
   const { t } = useAppLanguage();
+
+  // If a report is uploaded, use the borrower's name from the report
+  const effectiveName = (report && report.rawSourceType !== 'DEMO' && report.personal?.name)
+    ? report.personal.name.split(' ')[0]
+    : (userName || 'Borrower');
+
   return (
     <div className="space-y-6 sm:space-y-8 text-left max-w-6xl mx-auto pb-10">
       {/* 1. Greeting Header */}
       <div>
         <h1 className="text-2xl sm:text-3xl font-extrabold text-[#12233F] font-heading tracking-tight flex items-center gap-2">
-          {t("home.greeting", "Good Morning")}, {userName} <span className="inline-block animate-wave">👋</span>
+          {t("home.greeting", "Good Morning")}, {effectiveName} <span className="inline-block animate-wave">👋</span>
         </h1>
         <p className="text-sm sm:text-base text-slate-600 mt-1 font-medium">
           {t("home.greetingSub", "Take control of your credit. A better financial future starts here.")}

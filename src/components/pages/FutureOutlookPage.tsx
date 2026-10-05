@@ -191,7 +191,7 @@ export const FutureOutlookPage: React.FC<FutureOutlookPageProps> = ({
         <div>
           <h2 className="text-xl font-bold text-[#12233F]">Digital Katta  |  Future Score Outlook &amp; Trajectory</h2>
           <p className="text-xs text-slate-600">
-            Borrower: {report?.personal?.name || 'Sagar Dhumal'}  |  PAN: {report?.personal?.panMasked || 'XXXXX****X'}  |  Date: {new Date().toLocaleDateString('en-IN')}
+            Borrower: {report?.personal?.name || 'Demo Borrower'}  |  PAN: {report?.personal?.panMasked || 'XXXXX****X'}  |  Date: {new Date().toLocaleDateString('en-IN')}
           </p>
         </div>
         <div className="text-right">
